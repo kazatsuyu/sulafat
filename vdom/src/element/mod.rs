@@ -3,8 +3,8 @@ mod span;
 
 use super::{ApplyResult, Diff, List, Node, PatchList, PatchNode, PatchSingle, Single};
 pub use div::{Div, PatchDiv};
+use serde_derive::{Deserialize, Serialize};
 pub use span::{PatchSpan, Span};
-use serde_derive::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Element {
@@ -127,9 +127,9 @@ impl Diff for Element {
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Common {
-    pub(in crate::vdom) key: Option<String>,
-    pub(in crate::vdom) id: Option<String>,
-    pub(in crate::vdom) children: List,
+    key: Option<String>,
+    id: Option<String>,
+    children: List,
 }
 
 impl Common {
@@ -140,8 +140,8 @@ impl Common {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PatchCommon {
-    pub(in crate::vdom) id: Option<Option<String>>,
-    pub(in crate::vdom) children: Option<PatchList>,
+    pub(crate) id: Option<Option<String>>,
+    pub(crate) children: Option<PatchList>,
 }
 
 impl Diff for Common {

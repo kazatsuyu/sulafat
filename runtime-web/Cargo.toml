@@ -8,14 +8,15 @@ version = "0.1.0"
 wasm-opt = ["-O", "--enable-mutable-globals"]
 
 [dependencies]
-serde = "1.0.118"
 serde_cbor = "0.11.1"
-serde_derive = "1.0.118"
 wasm-bindgen = "0.2.69"
 
 [dependencies.console_error_panic_hook]
 optional = true
 version = "0.1.6"
+
+[dependencies.vdom]
+path = "../vdom"
 
 [dependencies.wee_alloc]
 optional = true

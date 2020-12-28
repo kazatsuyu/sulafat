@@ -2,11 +2,11 @@ use super::{
     ApplyResult, Common, Diff, Element, Node, PatchCommon, PatchElement, PatchNode, PatchSingle,
     Single,
 };
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Span {
-    pub(in crate::vdom) common: Common,
+    pub(crate) common: Common,
 }
 
 impl Span {
@@ -43,7 +43,7 @@ impl From<Span> for Node {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PatchSpan {
-    pub(in crate::vdom) common: PatchCommon,
+    pub(crate) common: PatchCommon,
 }
 
 impl From<PatchSpan> for PatchElement {

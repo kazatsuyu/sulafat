@@ -2,6 +2,7 @@
 
 mod utils;
 
+use serde_cbor::to_vec;
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -11,14 +12,6 @@ use wasm_bindgen::prelude::*;
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 #[wasm_bindgen]
-extern {
-    fn alert(s: &str);
+pub fn internal_init() -> Vec<u8> {
+    to_vec(&vdom::List::default()).unwrap()
 }
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, sulafat!");
-}
-
-// pub mod diff;
-pub mod vdom;
