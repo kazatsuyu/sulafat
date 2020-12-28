@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "nightly-features", feature(hash_raw_entry))]
+
 mod utils;
 
 use wasm_bindgen::prelude::*;
@@ -17,3 +19,6 @@ extern {
 pub fn greet() {
     alert("Hello, sulafat!");
 }
+
+// pub mod diff;
+pub mod vdom;
