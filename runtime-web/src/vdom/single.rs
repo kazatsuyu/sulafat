@@ -1,6 +1,7 @@
 use super::{ApplyResult, Diff, Element, Node, PatchElement, PatchNode};
+use serde_derive::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Single {
     Text(String),
     Element(Element),
@@ -22,7 +23,7 @@ impl From<Single> for Node {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PatchSingle {
     Replace(Single),
     Element(PatchElement),

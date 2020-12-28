@@ -4,14 +4,15 @@ mod span;
 use super::{ApplyResult, Diff, List, Node, PatchList, PatchNode, PatchSingle, Single};
 pub use div::{Div, PatchDiv};
 pub use span::{PatchSpan, Span};
+use serde_derive::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Element {
     Div(Div),
     Span(Span),
 }
 
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Tag {
     Div,
     Span,
@@ -66,7 +67,7 @@ impl From<Element> for Node {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PatchElement {
     Replace(Element),
     Div(PatchDiv),
@@ -124,7 +125,7 @@ impl Diff for Element {
     }
 }
 
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Common {
     pub(in crate::vdom) key: Option<String>,
     pub(in crate::vdom) id: Option<String>,
@@ -137,7 +138,7 @@ impl Common {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PatchCommon {
     pub(in crate::vdom) id: Option<Option<String>>,
     pub(in crate::vdom) children: Option<PatchList>,

@@ -1,12 +1,13 @@
 use super::{ApplyResult, Diff, List, PatchList, PatchSingle, Single};
+use serde_derive::{Serialize, Deserialize};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Node {
     Single(Single),
     List(List),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PatchNode {
     Replace(Node),
     Single(PatchSingle),
