@@ -1,4 +1,5 @@
 use super::{ApplyResult, Diff, Node, PatchNode, PatchSingle, Single};
+use serde_derive::{Deserialize, Serialize};
 use std::{collections::HashMap, iter::FromIterator, ops::Deref, ops::DerefMut};
 
 #[derive(Default, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -49,12 +50,6 @@ enum Reorder {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchListNoMoveOp {
-    Nop,
-    Modify(PatchSingle),
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PatchListOp {
     Nop,
     Modify(PatchSingle),
@@ -62,7 +57,6 @@ pub enum PatchListOp {
     FromModify(usize, PatchSingle),
     New(Single),
 }
-use serde_derive::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PatchList {

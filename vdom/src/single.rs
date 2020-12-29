@@ -1,5 +1,5 @@
 use super::{ApplyResult, Diff, Element, Node, PatchElement, PatchNode};
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Single {
