@@ -1,3 +1,9 @@
+#![cfg_attr(
+    feature = "nightly-features",
+    feature(unsafe_block_in_unsafe_fn, hash_raw_entry)
+)]
+#![cfg_attr(feature = "nightly-features", deny(unsafe_op_in_unsafe_fn))]
+
 pub mod component;
 pub mod diff;
 pub mod element;

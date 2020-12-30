@@ -1,4 +1,3 @@
-#![cfg_attr(feature = "nightly-features", feature(hash_raw_entry))]
 
 mod utils;
 

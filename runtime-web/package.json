@@ -2,9 +2,12 @@
   "name": "sulafat-runtime-web",
   "version": "0.1.0",
   "main": "ts/index.ts",
+  "contributors": ["kazatsuyu <shirayama.kazatsuyu@gmail.com>"],
+  "description": "Web runtime for sulafat.",
+  "repository": "https://github.com/kazatsuyu/sulafat.git",
   "license": "(MIT OR Apache-2.0)",
   "scripts": {
-    "build": "wasm-pack build -d wasm -t web && tsc",
+    "build": "wasm-pack build --out-dir wasm --target web -- --features nightly-features && tsc",
     "start": "simple-http-server"
   },
   "devDependencies": {

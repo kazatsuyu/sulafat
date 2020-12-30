@@ -7,6 +7,23 @@ pub enum Node {
     List(List),
 }
 
+impl Node {
+    pub fn key(&self) -> Option<&String> {
+        if let Node::Single(single) = self {
+            single.key()
+        } else {
+            None
+        }
+    }
+
+    pub(super) fn flat_len(&self) -> usize {
+        match self {
+            Node::Single(_) => 1,
+            Node::List(list) => list.flat_len(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PatchNode {
     Replace(Node),

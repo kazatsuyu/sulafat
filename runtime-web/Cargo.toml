@@ -3,6 +3,9 @@ authors = ["kazatsuyu <shirayama.kazatsuyu@gmail.com>"]
 edition = "2018"
 name = "sulafat-runtime-web"
 version = "0.1.0"
+description = "Web runtime for sulafat."
+repository = "https://github.com/kazatsuyu/sulafat.git"
+license = "(MIT OR Apache-2.0)"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = ["-O", "--enable-mutable-globals"]
@@ -28,7 +31,7 @@ wasm-bindgen-test = "0.3.19"
 
 [features]
 default = ["console_error_panic_hook"]
-nightly-features = []
+nightly-features = ["sulafat-vdom/nightly-features"]
 
 [lib]
 path = "rs/lib.rs"
