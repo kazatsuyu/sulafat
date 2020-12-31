@@ -1,10 +1,19 @@
-use super::{ApplyResult, Diff, List, PatchList, PatchSingle, Single};
+use std::fmt;
+
+use super::{ApplyResult, ComponentNode, Diff, List, PatchList, PatchSingle, Single};
+use fmt::Formatter;
+use serde::{
+    de::{EnumAccess, VariantAccess, Visitor},
+    ser::SerializeTupleVariant,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Node {
     Single(Single),
     List(List),
+    Component(ComponentNode),
 }
 
 impl Node {
@@ -20,6 +29,7 @@ impl Node {
         match self {
             Node::Single(_) => 1,
             Node::List(list) => list.flat_len(),
+            Node::Component(_) => todo!(),
         }
     }
 }
@@ -65,6 +75,60 @@ impl Diff for Node {
     }
 }
 
+impl Serialize for Node {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Node::Single(single) => {
+                let mut tv = serializer.serialize_tuple_variant("Node", 0, "Single", 1)?;
+                tv.serialize_field(single)?;
+                tv.end()
+            }
+            Node::List(list) => {
+                let mut tv = serializer.serialize_tuple_variant("Node", 1, "List", 1)?;
+                tv.serialize_field(list)?;
+                tv.end()
+            }
+            Node::Component(_) => todo!(),
+        }
+    }
+}
+
+struct NodeVisitor;
+
+impl<'de> Visitor<'de> for NodeVisitor {
+    type Value = Node;
+    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+        write!(formatter, "variant of Single or List")
+    }
+    fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+    where
+        A: EnumAccess<'de>,
+    {
+        #[derive(Deserialize, Debug)]
+        enum VariantTag {
+            Single,
+            List,
+        }
+        let (v, variant) = data.variant::<VariantTag>()?;
+        Ok(match v {
+            VariantTag::Single => variant.newtype_variant::<Single>()?.into(),
+            VariantTag::List => variant.newtype_variant::<List>()?.into(),
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Node {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_enum("Node", &["Single", "List"], NodeVisitor)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{Diff, Node, PatchNode};
@@ -92,5 +156,13 @@ mod test {
         assert_eq!(patch, Some(PatchNode::Replace(text.clone())));
         list.apply(patch.unwrap()).unwrap();
         assert_eq!(list, text);
+    }
+
+    #[test]
+    fn serde() {
+        let node1: Node = "a".into();
+        let ser = bincode::serialize(&node1).unwrap();
+        let node2 = bincode::deserialize(&ser).unwrap();
+        assert_eq!(node1, node2);
     }
 }

@@ -1,10 +1,7 @@
-
 mod utils;
 
-use std::sync::Mutex;
-
 use bincode::serialize;
-use once_cell::sync::Lazy;
+use std::{cell::RefCell, thread_local};
 use sulafat_vdom::{Common, Diff, Div, List, Node};
 use wasm_bindgen::prelude::*;
 
@@ -14,30 +11,41 @@ use wasm_bindgen::prelude::*;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-static NODE: Lazy<Mutex<Node>> = Lazy::new(|| Mutex::new(List::default().into()));
-static COUNT: Lazy<Mutex<usize>> = Lazy::new(|| Mutex::new(0));
+#[wasm_bindgen]
+extern "C" {
+    fn alert(s: &str);
+}
+
+thread_local! {
+    static NODE: RefCell<Node> = RefCell::new(List::default().into());
+    static COUNT: RefCell<usize> = RefCell::new(0);
+}
 
 #[wasm_bindgen]
 pub fn internal_init() -> Vec<u8> {
     utils::set_panic_hook();
-    serialize(&*NODE.lock().unwrap()).unwrap()
+    NODE.with(|node| serialize(&*node.borrow_mut())).unwrap()
 }
 
 #[wasm_bindgen]
 pub fn internal_update() -> Option<Vec<u8>> {
-    let mut count = COUNT.lock().unwrap();
-    let mut prev = NODE.lock().unwrap();
-    *count += 1;
-    let children = (0..=*count).map(|index| {
-        Div::new(Common::new(
-            None,
-            None,
-            vec![format!("{}", if index == 0 { *count } else { index - 1 }).into()].into(),
-        ))
-        .into()
-    });
-    let node: Node = children.collect();
-    let patch = prev.diff(&node);
-    *prev = node;
-    patch.map(|patch| serialize(&patch).unwrap())
+    COUNT.with(|count| {
+        NODE.with(|prev| {
+            let count = &mut *count.borrow_mut();
+            let prev = &mut *prev.borrow_mut();
+            *count += 1;
+            let children = (0..=*count).map(|index| {
+                Div::new(Common::new(
+                    None,
+                    None,
+                    vec![format!("{}", if index == 0 { *count } else { index - 1 }).into()].into(),
+                ))
+                .into()
+            });
+            let node: Node = children.collect();
+            let patch = prev.diff(&node);
+            *prev = node;
+            patch.map(|patch| serialize(&patch).unwrap())
+        })
+    })
 }

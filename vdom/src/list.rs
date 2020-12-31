@@ -70,6 +70,7 @@ impl List {
             match node {
                 Node::List(mut list) => list.flat_drain_impl(buffer),
                 Node::Single(single) => buffer.push(Some(single)),
+                Node::Component(_) => todo!(),
             }
         }
     }
@@ -182,6 +183,7 @@ impl List {
             match node {
                 Node::Single(single) => patches.push(PatchListOp::New(single.clone())),
                 Node::List(list) => list.add_patch(patches),
+                Node::Component(_) => todo!(),
             }
         }
     }
@@ -238,6 +240,7 @@ impl FlatDiffContext {
                     (Node::List(this), Node::List(other)) => {
                         self.flat_diff(this, other, this_flat_index + indexes[this_index])
                     }
+                    (Node::Component(_), Node::Component(_)) => todo!(),
                     (_, Node::Single(other)) => {
                         self.patches.push(PatchListOp::New(other.clone()));
                         self.flat_index += 1;
@@ -246,6 +249,7 @@ impl FlatDiffContext {
                         other.add_patch(&mut self.patches);
                         self.flat_index += other.flat_len();
                     }
+                    (_, Node::Component(_)) => todo!(),
                 }
             } else {
                 self.flat_index += node.flat_len();
@@ -257,6 +261,7 @@ impl FlatDiffContext {
                         other.add_patch(&mut self.patches);
                         self.flat_index += other.flat_len();
                     }
+                    Node::Component(_) => todo!(),
                 }
             }
         }
@@ -414,6 +419,7 @@ impl List {
             match node {
                 Node::Single(single) => serialize_seq.serialize_element(single)?,
                 Node::List(list) => list.serialize_impl::<S>(serialize_seq)?,
+                Node::Component(_) => todo!(),
             }
         }
         Ok(())
