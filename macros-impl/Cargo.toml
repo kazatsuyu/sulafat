@@ -1,0 +1,11 @@
+[package]
+name = "sulafat-macros-impl"
+version = "0.1.0"
+authors = ["kazatsuyu <shirayama.kazatsuyu@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+proc-macro2 ="1.0.24"
+syn = "1.0.56"
+quote = "1.0.8"
+heck = "0.3.2"

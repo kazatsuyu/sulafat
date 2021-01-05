@@ -5,17 +5,13 @@ use super::{ApplyResult, Diff, List, Node, PatchList, PatchNode, PatchSingle, Si
 pub use div::{Div, PatchDiv};
 use serde_derive::{Deserialize, Serialize};
 pub use span::{PatchSpan, Span};
+use sulafat_macros::with_types;
 
+#[with_types]
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Element {
     Div(Div),
     Span(Span),
-}
-
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
-pub enum Tag {
-    Div,
-    Span,
 }
 
 impl Element {
@@ -29,12 +25,6 @@ impl Element {
         match self {
             Element::Div(div) => div.common_mut(),
             Element::Span(span) => span.common_mut(),
-        }
-    }
-    pub fn tag(&self) -> Tag {
-        match self {
-            Element::Div(_) => Tag::Div,
-            Element::Span(_) => Tag::Span,
         }
     }
 

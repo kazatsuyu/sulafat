@@ -18,5 +18,8 @@ nightly-features = []
 serde_derive = "1.0.118"
 serde = "1.0.118"
 
+[dependencies.sulafat-macros]
+path = "../macros"
+
 [dev-dependencies]
 bincode = "1.3.1"
