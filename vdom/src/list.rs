@@ -93,27 +93,12 @@ impl<Msg> List<Msg> {
     unsafe fn unsafe_flatten(src: Node<Msg>, mut dest: *mut Node<Msg>) -> *mut Node<Msg> {
         if let Node::List(list) = src {
             for node in list.list.into_iter().rev() {
-                #[cfg(feature = "nightly-features")]
-                {
-                    dest = unsafe { Self::unsafe_flatten(node, dest) };
-                }
-                #[cfg(not(feature = "nightly-features"))]
-                {
-                    dest = Self::unsafe_flatten(node, dest);
-                }
+                dest = unsafe { Self::unsafe_flatten(node, dest) };
             }
             dest
         } else {
-            #[cfg(feature = "nightly-features")]
-            {
-                unsafe { dest.write(src) };
-                unsafe { dest.offset(-1) }
-            }
-            #[cfg(not(feature = "nightly-features"))]
-            {
-                dest.write(src);
-                dest.offset(-1)
-            }
+            unsafe { dest.write(src) };
+            unsafe { dest.offset(-1) }
         }
     }
 
@@ -563,13 +548,13 @@ mod test {
     #[test]
     fn key_move() {
         let mut list1: List<()> = vec![
-            Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
+            Div::new(Common::new(Some("a".into()), vec![], vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
         let list2: List<()> = vec![
             Div::default().into(),
-            Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
+            Div::new(Common::new(Some("a".into()), vec![], vec![].into())).into(),
         ]
         .into();
         assert_ne!(list1, list2);
@@ -588,12 +573,12 @@ mod test {
     #[test]
     fn different_key() {
         let mut list1: List<()> = vec![
-            Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
+            Div::new(Common::new(Some("a".into()), vec![], vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
         let list2: List<()> = vec![
-            Div::new(Common::new(Some("b".into()), None, vec![].into())).into(),
+            Div::new(Common::new(Some("b".into()), vec![], vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
@@ -606,7 +591,7 @@ mod test {
                 vec![(
                     0,
                     PatchSingle::Replace(
-                        Div::new(Common::new(Some("b".into()), None, vec![].into())).into()
+                        Div::new(Common::new(Some("b".into()), vec![], vec![].into())).into()
                     )
                 )],
             )),
@@ -618,13 +603,13 @@ mod test {
     #[test]
     fn different_key_move() {
         let mut list1: List<()> = vec![
-            Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
+            Div::new(Common::new(Some("a".into()), vec![], vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
         let list2: List<()> = vec![
             Div::default().into(),
-            Div::new(Common::new(Some("b".into()), None, vec![].into())).into(),
+            Div::new(Common::new(Some("b".into()), vec![], vec![].into())).into(),
         ]
         .into();
         assert_ne!(list1, list2);
@@ -634,7 +619,7 @@ mod test {
             Some(PatchList::All(vec![
                 PatchListOp::From(1),
                 PatchListOp::New(
-                    Div::new(Common::new(Some("b".into()), None, vec![].into())).into()
+                    Div::new(Common::new(Some("b".into()), vec![], vec![].into())).into()
                 ),
             ])),
         );

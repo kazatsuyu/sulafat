@@ -136,7 +136,10 @@ impl<'de, Msg> Deserialize<'de> for Span<Msg> {
 
 #[cfg(test)]
 mod test {
-    use super::{Common, Diff, PatchCommon, PatchSpan, Span};
+    use super::{
+        super::{id, PatchAttributeOp},
+        Common, Diff, PatchCommon, PatchSpan, Span,
+    };
     #[test]
     fn same() {
         let span1 = Span::<()>::default();
@@ -146,15 +149,16 @@ mod test {
 
     #[test]
     fn different_id() {
-        let mut span1 = Span::<()>::new(Common::new(None, Some("a".into()), Default::default()));
-        let span2 = Span::new(Common::new(None, Some("b".into()), Default::default()));
+        let mut span1 =
+            Span::<()>::new(Common::new(None, vec![id("a".into())], Default::default()));
+        let span2 = Span::new(Common::new(None, vec![id("b".into())], Default::default()));
         assert_ne!(span1, span2);
         let patch = span1.diff(&span2);
         assert_eq!(
             patch,
             Some(PatchSpan {
                 common: PatchCommon {
-                    id: Some(Some("b".into())),
+                    attr: vec![PatchAttributeOp::Insert(id("b".into()))],
                     children: Default::default()
                 }
             })

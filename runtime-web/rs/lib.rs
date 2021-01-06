@@ -37,7 +37,7 @@ pub fn internal_update() -> Option<Vec<u8>> {
             let children = (0..=*count).map(|index| {
                 Div::new(Common::new(
                     None,
-                    None,
+                    vec![],
                     vec![format!("{}", if index == 0 { *count } else { index - 1 }).into()].into(),
                 ))
                 .into()

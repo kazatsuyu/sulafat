@@ -136,7 +136,10 @@ impl<'de, Msg> Deserialize<'de> for Div<Msg> {
 
 #[cfg(test)]
 mod test {
-    use super::{Common, Diff, Div, PatchCommon, PatchDiv};
+    use super::{
+        super::{id, PatchAttributeOp},
+        Common, Diff, Div, PatchCommon, PatchDiv,
+    };
     #[test]
     fn same() {
         let div1 = Div::<()>::default();
@@ -146,15 +149,15 @@ mod test {
 
     #[test]
     fn different_id() {
-        let mut div1 = Div::<()>::new(Common::new(None, Some("a".into()), Default::default()));
-        let div2 = Div::new(Common::new(None, Some("b".into()), Default::default()));
+        let mut div1 = Div::<()>::new(Common::new(None, vec![id("a".into())], Default::default()));
+        let div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default()));
         assert_ne!(div1, div2);
         let patch = div1.diff(&div2);
         assert_eq!(
             patch,
             Some(PatchDiv {
                 common: PatchCommon {
-                    id: Some(Some("b".into())),
+                    attr: vec![PatchAttributeOp::Insert(id("b".into()))],
                     children: Default::default()
                 }
             })

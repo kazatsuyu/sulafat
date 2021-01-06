@@ -1,8 +1,10 @@
+mod attribute;
 mod common;
 mod div;
 mod span;
 
-pub use common::{Common, PatchCommon};
+pub use attribute::{id, on_click, on_pointer_move, Attribute, AttributeType};
+pub use common::{Common, PatchAttributeOp, PatchCommon};
 pub use div::{Div, PatchDiv};
 pub use span::{PatchSpan, Span};
 
@@ -38,8 +40,17 @@ impl<Msg> Element<Msg> {
         }
     }
 
-    pub fn id(&self) -> &Option<String> {
-        &self.common().id
+    pub fn id(&self) -> Option<&String> {
+        let index = self
+            .common()
+            .attr
+            .binary_search_by(|v| v.attribute_type().cmp(&attribute::AttributeType::Id))
+            .ok()?;
+        if let Attribute::Id(id) = &self.common().attr[index] {
+            Some(id)
+        } else {
+            unreachable!()
+        }
     }
 
     pub fn children(&self) -> &List<Msg> {
@@ -201,7 +212,9 @@ impl<'de, Msg> Deserialize<'de> for Element<Msg> {
 
 #[cfg(test)]
 mod test {
-    use super::{Common, Diff, Div, Element, PatchCommon, PatchDiv, PatchSpan, Span};
+    use super::{
+        id, Common, Diff, Div, Element, PatchAttributeOp, PatchCommon, PatchDiv, PatchSpan, Span,
+    };
 
     #[test]
     fn div_same() {
@@ -220,8 +233,8 @@ mod test {
     #[test]
     fn div_different_id() {
         let mut div1: Element<()> =
-            Div::new(Common::new(None, Some("a".into()), Default::default())).into();
-        let div2 = Div::new(Common::new(None, Some("b".into()), Default::default())).into();
+            Div::new(Common::new(None, vec![id("a".into())], Default::default())).into();
+        let div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default())).into();
         assert_ne!(div1, div2);
         let patch = div1.diff(&div2);
         assert_eq!(
@@ -229,7 +242,7 @@ mod test {
             Some(
                 PatchDiv {
                     common: PatchCommon {
-                        id: Some(Some("b".into())),
+                        attr: vec![PatchAttributeOp::Insert(id("b".into()))],
                         children: Default::default()
                     }
                 }
@@ -242,9 +255,18 @@ mod test {
 
     #[test]
     fn span_different_id() {
-        let mut span1: Element<()> =
-            Span::new(Common::new(None, Some("a".into()), Default::default())).into();
-        let span2 = Span::new(Common::new(None, Some("b".into()), Default::default())).into();
+        let mut span1: Element<()> = Span::new(Common::new(
+            None,
+            vec![super::attribute::id("a".into())],
+            Default::default(),
+        ))
+        .into();
+        let span2 = Span::new(Common::new(
+            None,
+            vec![super::attribute::id("b".into())],
+            Default::default(),
+        ))
+        .into();
         assert_ne!(span1, span2);
         let patch = span1.diff(&span2);
         assert_eq!(
@@ -252,7 +274,9 @@ mod test {
             Some(
                 PatchSpan {
                     common: PatchCommon {
-                        id: Some(Some("b".into())),
+                        attr: vec![super::PatchAttributeOp::Insert(super::attribute::id(
+                            "b".into()
+                        ))],
                         children: Default::default()
                     }
                 }
@@ -266,8 +290,8 @@ mod test {
     #[test]
     fn div_different_key() {
         let mut div1: Element<()> =
-            Div::new(Common::new(Some("a".into()), None, Default::default())).into();
-        let div2 = Div::new(Common::new(Some("b".into()), None, Default::default())).into();
+            Div::new(Common::new(Some("a".into()), vec![], Default::default())).into();
+        let div2 = Div::new(Common::new(Some("b".into()), vec![], Default::default())).into();
         assert_ne!(div1, div2);
         let patch = div1.diff(&div2);
         assert_eq!(patch, Some(super::PatchElement::Replace(div2.clone())));
@@ -278,8 +302,8 @@ mod test {
     #[test]
     fn span_different_key() {
         let mut span1: Element<()> =
-            Span::new(Common::new(Some("a".into()), None, Default::default())).into();
-        let span2 = Span::new(Common::new(Some("b".into()), None, Default::default())).into();
+            Span::new(Common::new(Some("a".into()), vec![], Default::default())).into();
+        let span2 = Span::new(Common::new(Some("b".into()), vec![], Default::default())).into();
         assert_ne!(span1, span2);
         let patch = span1.diff(&span2);
         assert_eq!(patch, Some(super::PatchElement::Replace(span2.clone())));
