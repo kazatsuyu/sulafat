@@ -17,7 +17,7 @@ extern "C" {
 }
 
 thread_local! {
-    static NODE: RefCell<Node> = RefCell::new(List::default().into());
+    static NODE: RefCell<Node<()>> = RefCell::new(List::default().into());
     static COUNT: RefCell<usize> = RefCell::new(0);
 }
 
@@ -42,7 +42,7 @@ pub fn internal_update() -> Option<Vec<u8>> {
                 ))
                 .into()
             });
-            let node: Node = children.collect();
+            let node: Node<()> = children.collect();
             let patch = prev.diff(&node);
             *prev = node;
             patch.map(|patch| serialize(&patch).unwrap())

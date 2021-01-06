@@ -14,13 +14,13 @@ use std::{
     ops::Deref,
 };
 
-#[derive(Default, Debug, Clone, Eq, PartialEq)]
-pub struct List {
+#[derive(Default, Debug)]
+pub struct List<Msg> {
     flat_len: usize,
-    list: Vec<Node>,
+    list: Vec<Node<Msg>>,
 }
 
-impl List {
+impl<Msg> List<Msg> {
     fn key_map_indexes(&self) -> (HashMap<&String, usize>, Vec<usize>) {
         let mut map = HashMap::new();
         let mut vec = Vec::with_capacity(self.len());
@@ -43,29 +43,29 @@ impl List {
         self.iter().map(|node| node.flat_len()).sum()
     }
 
-    pub fn push(&mut self, node: Node) {
+    pub fn push(&mut self, node: Node<Msg>) {
         self.flat_len += node.flat_len();
         self.list.push(node);
     }
 
-    pub fn pop(&mut self) -> Option<Node> {
+    pub fn pop(&mut self) -> Option<Node<Msg>> {
         let node = self.list.pop()?;
         self.flat_len -= node.flat_len();
         Some(node)
     }
 
-    pub fn insert(&mut self, index: usize, node: Node) {
+    pub fn insert(&mut self, index: usize, node: Node<Msg>) {
         self.flat_len += node.flat_len();
         self.list.insert(index, node);
     }
 
-    pub fn remove(&mut self, index: usize) -> Node {
+    pub fn remove(&mut self, index: usize) -> Node<Msg> {
         let node = self.list.remove(index);
         self.flat_len -= node.flat_len();
         node
     }
 
-    fn flat_drain_impl(&mut self, buffer: &mut Vec<Option<Single>>) {
+    fn flat_drain_impl(&mut self, buffer: &mut Vec<Option<Single<Msg>>>) {
         for node in self.list.drain(..) {
             match node {
                 Node::List(mut list) => list.flat_drain_impl(buffer),
@@ -75,13 +75,13 @@ impl List {
         }
     }
 
-    fn flat_drain(&mut self) -> Vec<Option<Single>> {
+    fn flat_drain(&mut self) -> Vec<Option<Single<Msg>>> {
         let mut buffer = Vec::with_capacity(self.flat_len);
         self.flat_drain_impl(&mut buffer);
         buffer
     }
 
-    fn flatten_new(&mut self, list: Vec<Node>) {
+    fn flatten_new(&mut self, list: Vec<Node<Msg>>) {
         for node in list {
             match node {
                 Node::List(list) => self.flatten_new(list.list),
@@ -90,7 +90,7 @@ impl List {
         }
     }
 
-    unsafe fn unsafe_flatten(src: Node, mut dest: *mut Node) -> *mut Node {
+    unsafe fn unsafe_flatten(src: Node<Msg>, mut dest: *mut Node<Msg>) -> *mut Node<Msg> {
         if let Node::List(list) = src {
             for node in list.list.into_iter().rev() {
                 #[cfg(feature = "nightly-features")]
@@ -142,43 +142,43 @@ impl List {
     }
 }
 
-impl Deref for List {
-    type Target = Vec<Node>;
+impl<Msg> Deref for List<Msg> {
+    type Target = Vec<Node<Msg>>;
     fn deref(&self) -> &Self::Target {
         &self.list
     }
 }
 
-impl From<List> for Node {
-    fn from(list: List) -> Self {
+impl<Msg> From<List<Msg>> for Node<Msg> {
+    fn from(list: List<Msg>) -> Self {
         Node::List(list)
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchListOp {
+pub enum PatchListOp<Msg> {
     Nop,
-    Modify(PatchSingle),
+    Modify(PatchSingle<Msg>),
     From(usize),
-    FromModify(usize, PatchSingle),
-    New(Single),
+    FromModify(usize, PatchSingle<Msg>),
+    New(Single<Msg>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchList {
-    All(Vec<PatchListOp>),
-    Entries(usize, Vec<(usize, PatchSingle)>),
+pub enum PatchList<Msg> {
+    All(Vec<PatchListOp<Msg>>),
+    Entries(usize, Vec<(usize, PatchSingle<Msg>)>),
     Truncate(usize),
 }
 
-impl From<PatchList> for PatchNode {
-    fn from(patch: PatchList) -> Self {
+impl<Msg> From<PatchList<Msg>> for PatchNode<Msg> {
+    fn from(patch: PatchList<Msg>) -> Self {
         PatchNode::List(patch)
     }
 }
 
-impl List {
-    fn add_patch(&self, patches: &mut Vec<PatchListOp>) {
+impl<Msg> List<Msg> {
+    fn add_patch(&self, patches: &mut Vec<PatchListOp<Msg>>) {
         for node in &self.list {
             match node {
                 Node::Single(single) => patches.push(PatchListOp::New(single.clone())),
@@ -189,15 +189,15 @@ impl List {
     }
 }
 
-struct FlatDiffContext {
+struct FlatDiffContext<Msg> {
     nop_count: usize,
     is_move: bool,
     flat_index: usize,
-    patches: Vec<PatchListOp>,
+    patches: Vec<PatchListOp<Msg>>,
 }
 
-impl FlatDiffContext {
-    fn flat_diff(&mut self, this: &List, other: &List, this_flat_index: usize) {
+impl<Msg> FlatDiffContext<Msg> {
+    fn flat_diff(&mut self, this: &List<Msg>, other: &List<Msg>, this_flat_index: usize) {
         let (key_map, indexes) = this.key_map_indexes();
         let mut this_index = 0;
         for node in &other.list {
@@ -268,8 +268,8 @@ impl FlatDiffContext {
     }
 }
 
-impl Diff for List {
-    type Patch = PatchList;
+impl<Msg> Diff for List<Msg> {
+    type Patch = PatchList<Msg>;
     fn diff(&self, other: &Self) -> Option<Self::Patch> {
         let mut context = FlatDiffContext {
             nop_count: 0,
@@ -374,8 +374,8 @@ impl Diff for List {
     }
 }
 
-impl From<Vec<Node>> for List {
-    fn from(list: Vec<Node>) -> Self {
+impl<Msg> From<Vec<Node<Msg>>> for List<Msg> {
+    fn from(list: Vec<Node<Msg>>) -> Self {
         Self {
             flat_len: list.iter().map(|node| node.flat_len()).sum(),
             list,
@@ -383,8 +383,8 @@ impl From<Vec<Node>> for List {
     }
 }
 
-impl FromIterator<Node> for List {
-    fn from_iter<T: IntoIterator<Item = Node>>(iter: T) -> Self {
+impl<Msg> FromIterator<Node<Msg>> for List<Msg> {
+    fn from_iter<T: IntoIterator<Item = Node<Msg>>>(iter: T) -> Self {
         let iter = iter.into_iter();
         let (min, max) = iter.size_hint();
         let len = max.unwrap_or(min);
@@ -398,19 +398,19 @@ impl FromIterator<Node> for List {
     }
 }
 
-impl From<Vec<Node>> for Node {
-    fn from(list: Vec<Node>) -> Self {
+impl<Msg> From<Vec<Node<Msg>>> for Node<Msg> {
+    fn from(list: Vec<Node<Msg>>) -> Self {
         List::from(list).into()
     }
 }
 
-impl FromIterator<Node> for Node {
-    fn from_iter<T: IntoIterator<Item = Node>>(iter: T) -> Self {
+impl<Msg> FromIterator<Node<Msg>> for Node<Msg> {
+    fn from_iter<T: IntoIterator<Item = Node<Msg>>>(iter: T) -> Self {
         List::from_iter(iter).into()
     }
 }
 
-impl List {
+impl<Msg> List<Msg> {
     fn serialize_impl<S>(&self, serialize_seq: &mut S::SerializeSeq) -> Result<(), S::Error>
     where
         S: Serializer,
@@ -426,7 +426,7 @@ impl List {
     }
 }
 
-impl Serialize for List {
+impl<Msg> Serialize for List<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -437,36 +437,52 @@ impl Serialize for List {
     }
 }
 
-struct ListVisitor;
-
-impl<'de> Visitor<'de> for ListVisitor {
-    type Value = List;
-    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-        write!(formatter, "sequence of Single elements")
-    }
-    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-    where
-        A: SeqAccess<'de>,
-    {
-        let mut list = Vec::with_capacity(seq.size_hint().unwrap_or(0));
-        while let Some(single) = seq.next_element::<Single>()? {
-            list.push(single.into());
-        }
-        Ok(List {
-            flat_len: list.len(),
-            list,
-        })
-    }
-}
-
-impl<'de> Deserialize<'de> for List {
+impl<'de, Msg> Deserialize<'de> for List<Msg> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_seq(ListVisitor)
+        struct ListVisitor<Msg>(std::marker::PhantomData<Msg>);
+
+        impl<'de, Msg> Visitor<'de> for ListVisitor<Msg> {
+            type Value = List<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "sequence of Single elements")
+            }
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut list = Vec::with_capacity(seq.size_hint().unwrap_or(0));
+                while let Some(single) = seq.next_element::<Single<Msg>>()? {
+                    list.push(single.into());
+                }
+                Ok(List {
+                    flat_len: list.len(),
+                    list,
+                })
+            }
+        }
+        deserializer.deserialize_seq(ListVisitor(Default::default()))
     }
 }
+
+impl<Msg> Clone for List<Msg> {
+    fn clone(&self) -> Self {
+        Self {
+            flat_len: self.flat_len,
+            list: self.list.clone(),
+        }
+    }
+}
+
+impl<Msg> PartialEq for List<Msg> {
+    fn eq(&self, other: &Self) -> bool {
+        self.flat_len == other.flat_len && self.list == other.list
+    }
+}
+
+impl<Msg> Eq for List<Msg> {}
 
 #[cfg(test)]
 mod test {
@@ -477,14 +493,14 @@ mod test {
 
     #[test]
     fn empty() {
-        let list1 = List::default();
+        let list1 = List::<()>::default();
         let list2 = List::default();
         assert_eq!(list1.diff(&list2), None)
     }
 
     #[test]
     fn same() {
-        let list1: List = vec![Div::default().into()].into();
+        let list1: List<()> = vec![Div::default().into()].into();
         let list2 = vec![Div::default().into()].into();
         assert_eq!(list1, list2);
         assert_eq!(list1.diff(&list2), None);
@@ -492,7 +508,7 @@ mod test {
 
     #[test]
     fn append() {
-        let mut list1 = List::default();
+        let mut list1 = List::<()>::default();
         let list2 = vec![Div::default().into()].into();
         assert_ne!(list1, list2);
         let patch = list1.diff(&list2);
@@ -508,7 +524,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let mut list1: List = vec![Div::default().into()].into();
+        let mut list1: List<()> = vec![Div::default().into()].into();
         let list2 = List::default();
         assert_ne!(list1, list2);
         let patch = list1.diff(&list2);
@@ -519,7 +535,7 @@ mod test {
 
     #[test]
     fn replace() {
-        let mut list1: List = vec![
+        let mut list1: List<()> = vec![
             Div::default().into(),
             Div::default().into(),
             Div::default().into(),
@@ -546,12 +562,12 @@ mod test {
 
     #[test]
     fn key_move() {
-        let mut list1: List = vec![
+        let mut list1: List<()> = vec![
             Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
-        let list2: List = vec![
+        let list2: List<()> = vec![
             Div::default().into(),
             Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
         ]
@@ -571,12 +587,12 @@ mod test {
 
     #[test]
     fn different_key() {
-        let mut list1: List = vec![
+        let mut list1: List<()> = vec![
             Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
-        let list2: List = vec![
+        let list2: List<()> = vec![
             Div::new(Common::new(Some("b".into()), None, vec![].into())).into(),
             Div::default().into(),
         ]
@@ -601,12 +617,12 @@ mod test {
 
     #[test]
     fn different_key_move() {
-        let mut list1: List = vec![
+        let mut list1: List<()> = vec![
             Div::new(Common::new(Some("a".into()), None, vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
-        let list2: List = vec![
+        let list2: List<()> = vec![
             Div::default().into(),
             Div::new(Common::new(Some("b".into()), None, vec![].into())).into(),
         ]

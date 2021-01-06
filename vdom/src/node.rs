@@ -9,14 +9,14 @@ use serde::{
 };
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Node {
-    Single(Single),
-    List(List),
-    Component(ComponentNode),
+#[derive(Debug)]
+pub enum Node<Msg> {
+    Single(Single<Msg>),
+    List(List<Msg>),
+    Component(ComponentNode<Msg>),
 }
 
-impl Node {
+impl<Msg> Node<Msg> {
     pub fn key(&self) -> Option<&String> {
         if let Node::Single(single) = self {
             single.key()
@@ -35,14 +35,14 @@ impl Node {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchNode {
-    Replace(Node),
-    Single(PatchSingle),
-    List(PatchList),
+pub enum PatchNode<Msg> {
+    Replace(Node<Msg>),
+    Single(PatchSingle<Msg>),
+    List(PatchList<Msg>),
 }
 
-impl Diff for Node {
-    type Patch = PatchNode;
+impl<Msg> Diff for Node<Msg> {
+    type Patch = PatchNode<Msg>;
     fn diff(&self, other: &Self) -> Option<Self::Patch> {
         use Node::*;
         match (self, other) {
@@ -75,7 +75,7 @@ impl Diff for Node {
     }
 }
 
-impl Serialize for Node {
+impl<Msg> Serialize for Node<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -96,38 +96,60 @@ impl Serialize for Node {
     }
 }
 
-struct NodeVisitor;
-
-impl<'de> Visitor<'de> for NodeVisitor {
-    type Value = Node;
-    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-        write!(formatter, "variant of Single or List")
-    }
-    fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-    where
-        A: EnumAccess<'de>,
-    {
-        #[derive(Deserialize, Debug)]
-        enum VariantTag {
-            Single,
-            List,
-        }
-        let (v, variant) = data.variant::<VariantTag>()?;
-        Ok(match v {
-            VariantTag::Single => variant.newtype_variant::<Single>()?.into(),
-            VariantTag::List => variant.newtype_variant::<List>()?.into(),
-        })
-    }
-}
-
-impl<'de> Deserialize<'de> for Node {
+impl<'de, Msg> Deserialize<'de> for Node<Msg> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_enum("Node", &["Single", "List"], NodeVisitor)
+        struct NodeVisitor<Msg>(std::marker::PhantomData<Msg>);
+
+        impl<'de, Msg> Visitor<'de> for NodeVisitor<Msg> {
+            type Value = Node<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "variant of Single or List")
+            }
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: EnumAccess<'de>,
+            {
+                #[derive(Deserialize, Debug)]
+                enum VariantTag {
+                    Single,
+                    List,
+                }
+                let (v, variant) = data.variant::<VariantTag>()?;
+                Ok(match v {
+                    VariantTag::Single => variant.newtype_variant::<Single<Msg>>()?.into(),
+                    VariantTag::List => variant.newtype_variant::<List<Msg>>()?.into(),
+                })
+            }
+        }
+        deserializer.deserialize_enum("Node", &["Single", "List"], NodeVisitor(Default::default()))
     }
 }
+
+impl<Msg> Clone for Node<Msg> {
+    fn clone(&self) -> Self {
+        match self {
+            Node::Single(single) => Node::Single(single.clone()),
+            Node::List(list) => Node::List(list.clone()),
+            Node::Component(component) => Node::Component(component.clone()),
+        }
+    }
+}
+
+impl<Msg> PartialEq for Node<Msg> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Node::Single(this), Node::Single(other)) => this == other,
+            (Node::List(this), Node::List(other)) => this == other,
+            (Node::Component(this), Node::Component(other)) => this == other,
+            _ => false,
+        }
+    }
+}
+
+impl<Msg> Eq for Node<Msg> {}
 
 #[cfg(test)]
 mod test {
@@ -135,21 +157,21 @@ mod test {
 
     #[test]
     fn same_single() {
-        let text1: Node = "a".into();
+        let text1: Node<()> = "a".into();
         let text2 = "a".into();
         assert_eq!(text1.diff(&text2), None);
     }
 
     #[test]
     fn same_list() {
-        let list1: Node = vec!["a".into()].into();
+        let list1: Node<()> = vec!["a".into()].into();
         let list2 = vec!["a".into()].into();
         assert_eq!(list1.diff(&list2), None);
     }
 
     #[test]
     fn different() {
-        let mut list: Node = vec!["a".into()].into();
+        let mut list: Node<()> = vec!["a".into()].into();
         let text = "a".into();
         assert_ne!(list, text);
         let patch = list.diff(&text);
@@ -160,7 +182,7 @@ mod test {
 
     #[test]
     fn serde() {
-        let node1: Node = "a".into();
+        let node1: Node<()> = "a".into();
         let ser = bincode::serialize(&node1).unwrap();
         let node2 = bincode::deserialize(&ser).unwrap();
         assert_eq!(node1, node2);

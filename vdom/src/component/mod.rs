@@ -3,11 +3,11 @@ use std::cell::UnsafeCell;
 use super::Node;
 
 #[derive(Debug)]
-pub struct ComponentNode {
-    rendered: UnsafeCell<Option<std::rc::Rc<Node>>>,
+pub struct ComponentNode<Msg> {
+    rendered: UnsafeCell<Option<std::rc::Rc<Node<Msg>>>>,
 }
 
-impl Clone for ComponentNode {
+impl<Msg> Clone for ComponentNode<Msg> {
     fn clone(&self) -> Self {
         let rendered = unsafe { &*self.rendered.get() }.clone();
         Self {
@@ -16,14 +16,14 @@ impl Clone for ComponentNode {
     }
 }
 
-impl PartialEq for ComponentNode {
+impl<Msg> PartialEq for ComponentNode<Msg> {
     fn eq(&self, _other: &Self) -> bool {
         todo!()
     }
 }
 
-impl Eq for ComponentNode {}
+impl<Msg> Eq for ComponentNode<Msg> {}
 
-pub trait Component {
-    fn render() -> ComponentNode;
+pub trait Component<Msg> {
+    fn render() -> ComponentNode<Msg>;
 }
