@@ -1,4 +1,4 @@
-use crate::util::{reinterpret_cast, safe_cast};
+use crate::util::{reinterpret_cast, safe_cast, RawState, RawStateOf, StealHasher};
 use serde::{
     de::{EnumAccess, VariantAccess, Visitor},
     ser::SerializeTupleVariant,
@@ -6,9 +6,9 @@ use serde::{
 };
 use serde_derive::{Deserialize, Serialize};
 use std::{
-    any::TypeId,
     fmt::Debug,
     fmt::{self, Formatter},
+    hash::Hash,
     rc::Rc,
 };
 use sulafat_macros::with_types;
@@ -18,67 +18,28 @@ pub struct Handler<Args, Msg> {
     handle: Rc<dyn Handle<Args, Msg>>,
 }
 
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
+const SIZE_OF_TYPEID: usize = std::mem::size_of::<std::any::TypeId>();
+
+type TypeIdRawType = <RawStateOf<SIZE_OF_TYPEID> as RawState>::Type;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
+pub struct TypeId {
+    t: TypeIdRawType,
+}
+
+impl TypeId {
+    fn of<T: 'static>() -> Self {
+        let type_id = std::any::TypeId::of::<T>();
+        let mut hasher = StealHasher::<SIZE_OF_TYPEID>::default();
+        type_id.hash(&mut hasher);
+        Self { t: hasher.get() }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum Id {
     TypeId(TypeId),
     FnPtr(usize),
-}
-
-impl Serialize for Id {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match *self {
-            Id::TypeId(type_id) => {
-                let mut variant = serializer.serialize_tuple_variant("Id", 0, "TypeId", 1)?;
-                variant.serialize_field::<u64>(&unsafe { reinterpret_cast(type_id) })?;
-                variant.end()
-            }
-            Id::FnPtr(fn_ptr) => {
-                let mut variant = serializer.serialize_tuple_variant("Id", 0, "FnPtr", 1)?;
-                variant.serialize_field::<usize>(&fn_ptr)?;
-                variant.end()
-            }
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for Id {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct IdVisitor;
-        impl<'de> Visitor<'de> for IdVisitor {
-            type Value = Id;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "variant of TypeId or FnPtr")
-            }
-            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                #[derive(Deserialize)]
-                enum Tag {
-                    TypeId,
-                    FnPtr,
-                }
-                let (v, variant) = data.variant::<Tag>()?;
-                Ok(match v {
-                    Tag::TypeId => {
-                        let id = variant.newtype_variant::<u64>()?;
-                        Id::TypeId(unsafe { reinterpret_cast(id) })
-                    }
-                    Tag::FnPtr => {
-                        let fn_ptr = variant.newtype_variant::<usize>()?;
-                        Id::FnPtr(fn_ptr)
-                    }
-                })
-            }
-        }
-        deserializer.deserialize_enum("Id", &["TypeId", "FnPtr"], IdVisitor)
-    }
 }
 
 impl<Args, Msg> Handler<Args, Msg> {
@@ -190,7 +151,7 @@ where
     }
 }
 
-#[with_types]
+#[with_types(AttributeType)]
 #[derive(Debug)]
 pub enum Attribute<Msg> {
     Id(String),
@@ -337,6 +298,97 @@ impl<'de, Msg> Deserialize<'de> for Attribute<Msg> {
             "Node",
             &["Single", "List"],
             AttributeVisitor(Default::default()),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub enum PatchAttribute<Msg> {
+    Remove(AttributeType),
+    Insert(Attribute<Msg>),
+}
+
+impl<Msg> Clone for PatchAttribute<Msg> {
+    fn clone(&self) -> Self {
+        match self {
+            PatchAttribute::Remove(attribute_type) => {
+                PatchAttribute::Remove(attribute_type.clone())
+            }
+            PatchAttribute::Insert(attribute) => PatchAttribute::Insert(attribute.clone()),
+        }
+    }
+}
+
+impl<Msg> PartialEq for PatchAttribute<Msg> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PatchAttribute::Remove(this), PatchAttribute::Remove(other)) => this == other,
+            (PatchAttribute::Insert(this), PatchAttribute::Insert(other)) => this == other,
+            _ => false,
+        }
+    }
+}
+
+impl<Msg> Eq for PatchAttribute<Msg> {}
+
+impl<Msg> Serialize for PatchAttribute<Msg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            PatchAttribute::Remove(attribute_type) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchAttributeOp", 0, "Remove", 1)?;
+                variant.serialize_field(attribute_type)?;
+                variant.end()
+            }
+            PatchAttribute::Insert(attribute) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchAttributeOp", 0, "Insert", 1)?;
+                variant.serialize_field(attribute)?;
+                variant.end()
+            }
+        }
+    }
+}
+
+impl<'de, Msg> Deserialize<'de> for PatchAttribute<Msg> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PatchAttributeOpVisitor<Msg>(std::marker::PhantomData<Msg>);
+        impl<'de, Msg> Visitor<'de> for PatchAttributeOpVisitor<Msg> {
+            type Value = PatchAttribute<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "variant of Remove or Insert")
+            }
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: EnumAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                enum Tag {
+                    Remove,
+                    Insert,
+                }
+                let (v, variant) = data.variant::<Tag>()?;
+                Ok(match v {
+                    Tag::Remove => {
+                        PatchAttribute::Remove(variant.newtype_variant::<AttributeType>()?)
+                    }
+                    Tag::Insert => {
+                        PatchAttribute::Insert(variant.newtype_variant::<Attribute<Msg>>()?)
+                    }
+                })
+            }
+        }
+
+        deserializer.deserialize_enum(
+            "PatchAttributeOp",
+            &["Remove", "Insert"],
+            PatchAttributeOpVisitor(Default::default()),
         )
     }
 }

@@ -10,7 +10,6 @@ use serde::{
     ser::SerializeStruct,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use serde_derive::{Deserialize, Serialize};
 
 #[derive(Default, Debug)]
 pub struct Div<Msg> {
@@ -47,11 +46,6 @@ impl<Msg> From<Div<Msg>> for Node<Msg> {
     fn from(div: Div<Msg>) -> Self {
         Single::from(div).into()
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PatchDiv<Msg> {
-    pub(crate) common: PatchCommon<Msg>,
 }
 
 impl<Msg> From<PatchDiv<Msg>> for PatchElement<Msg> {
@@ -126,7 +120,7 @@ impl<'de, Msg> Deserialize<'de> for Div<Msg> {
             where
                 A: MapAccess<'de>,
             {
-                let (_, common) = map.next_entry::<&str, Common<Msg>>()?.unwrap();
+                let (_, common) = map.next_entry::<&str, _>()?.unwrap();
                 Ok(Div::new(common))
             }
         }
@@ -134,10 +128,53 @@ impl<'de, Msg> Deserialize<'de> for Div<Msg> {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PatchDiv<Msg> {
+    pub(crate) common: PatchCommon<Msg>,
+}
+
+impl<Msg> Serialize for PatchDiv<Msg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut r#struct = serializer.serialize_struct("PatchDiv", 1)?;
+        r#struct.serialize_field("common", &self.common)?;
+        r#struct.end()
+    }
+}
+
+impl<'de, Msg> Deserialize<'de> for PatchDiv<Msg> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PatchDivVisitor<Msg>(std::marker::PhantomData<Msg>);
+        impl<'de, Msg> Visitor<'de> for PatchDivVisitor<Msg> {
+            type Value = PatchDiv<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "struct of common")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let (_, common) = map.next_entry::<&str, _>()?.unwrap();
+                Ok(PatchDiv { common })
+            }
+        }
+        deserializer.deserialize_struct(
+            "PatchDiv",
+            &["common"],
+            PatchDivVisitor(Default::default()),
+        )
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{
-        super::{id, PatchAttributeOp},
+        super::{id, PatchAttribute},
         Common, Diff, Div, PatchCommon, PatchDiv,
     };
     #[test]
@@ -157,7 +194,7 @@ mod test {
             patch,
             Some(PatchDiv {
                 common: PatchCommon {
-                    attr: vec![PatchAttributeOp::Insert(id("b".into()))],
+                    attr: vec![PatchAttribute::Insert(id("b".into()))],
                     children: Default::default()
                 }
             })

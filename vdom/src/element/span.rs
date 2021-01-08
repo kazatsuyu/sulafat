@@ -10,7 +10,6 @@ use serde::{
     ser::SerializeStruct,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use serde_derive::{Deserialize, Serialize};
 
 #[derive(Default, Debug)]
 pub struct Span<Msg> {
@@ -47,11 +46,6 @@ impl<Msg> From<Span<Msg>> for Node<Msg> {
     fn from(span: Span<Msg>) -> Self {
         Single::from(span).into()
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct PatchSpan<Msg> {
-    pub(crate) common: PatchCommon<Msg>,
 }
 
 impl<Msg> From<PatchSpan<Msg>> for PatchElement<Msg> {
@@ -116,8 +110,8 @@ impl<'de, Msg> Deserialize<'de> for Span<Msg> {
     where
         D: Deserializer<'de>,
     {
-        struct DivVisitor<Msg>(std::marker::PhantomData<Msg>);
-        impl<'de, Msg> Visitor<'de> for DivVisitor<Msg> {
+        struct SpanVisitor<Msg>(std::marker::PhantomData<Msg>);
+        impl<'de, Msg> Visitor<'de> for SpanVisitor<Msg> {
             type Value = Span<Msg>;
             fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
                 write!(formatter, "struct of common")
@@ -130,14 +124,57 @@ impl<'de, Msg> Deserialize<'de> for Span<Msg> {
                 Ok(Span::new(common))
             }
         }
-        deserializer.deserialize_struct("Span", &["common"], DivVisitor(Default::default()))
+        deserializer.deserialize_struct("Span", &["common"], SpanVisitor(Default::default()))
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct PatchSpan<Msg> {
+    pub(crate) common: PatchCommon<Msg>,
+}
+
+impl<Msg> Serialize for PatchSpan<Msg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut r#struct = serializer.serialize_struct("PatchSpan", 1)?;
+        r#struct.serialize_field("common", &self.common)?;
+        r#struct.end()
+    }
+}
+
+impl<'de, Msg> Deserialize<'de> for PatchSpan<Msg> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PatchSpanVisitor<Msg>(std::marker::PhantomData<Msg>);
+        impl<'de, Msg> Visitor<'de> for PatchSpanVisitor<Msg> {
+            type Value = PatchSpan<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "struct of common")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let (_, common) = map.next_entry::<&str, PatchCommon<Msg>>()?.unwrap();
+                Ok(PatchSpan { common })
+            }
+        }
+        deserializer.deserialize_struct(
+            "PatchDiv",
+            &["common"],
+            PatchSpanVisitor(Default::default()),
+        )
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::{
-        super::{id, PatchAttributeOp},
+        super::{id, PatchAttribute},
         Common, Diff, PatchCommon, PatchSpan, Span,
     };
     #[test]
@@ -158,7 +195,7 @@ mod test {
             patch,
             Some(PatchSpan {
                 common: PatchCommon {
-                    attr: vec![PatchAttributeOp::Insert(id("b".into()))],
+                    attr: vec![PatchAttribute::Insert(id("b".into()))],
                     children: Default::default()
                 }
             })

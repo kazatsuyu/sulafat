@@ -72,51 +72,92 @@ const ELEMENT_DIV = 0;
 const ELEMENT_SPAN = 1;
 
 function deserializeElement(decoder: Decoder): Element {
+  let element: Element;
   switch (decoder.u32()) {
     case ELEMENT_DIV: {
-      const [id, children] = deserializeCommon(decoder);
-      const div = document.createElementNS(
-        "http://www.w3.org/1999/xhtml",
-        "div"
-      );
-      if (id) {
-        div.setAttribute("id", id);
-      }
-      div.append(...children);
-      return div;
+      element = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      break;
     }
     case ELEMENT_SPAN: {
-      const [id, children] = deserializeCommon(decoder);
-      const span = document.createElementNS(
+      element = document.createElementNS(
         "http://www.w3.org/1999/xhtml",
         "span"
       );
-      if (id) {
-        span.setAttribute("id", id);
-      }
-      span.append(...children);
-      return span;
+      break;
     }
     default:
       unreachable();
   }
+  const [attr, children] = deserializeCommon(decoder);
+  for (const a of attr) {
+    switch (a[0]) {
+      case ATTRIBUTE_ID:
+        element.setAttribute("id", a[1]);
+        break;
+      case ATTRIBUTE_ON_CLICK:
+        element.addEventListener("click", () => {
+          console.log(a[1]);
+          todo();
+        });
+        break;
+      case ATTRIBUTE_ON_POINTER_MOVE:
+        element.addEventListener("pointermove", () => {
+          console.log(a[1]);
+          todo();
+        });
+        break;
+    }
+  }
+  element.append(...children);
+  return element;
 }
 
-function deserializeCommon(
-  decoder: Decoder
-): [id: string | undefined, children: Node[]] {
-  const key = decoder.optional("string");
-  const id = decoder.optional("string");
+function deserializeCommon(decoder: Decoder): [attr: Attr[], children: Node[]] {
+  const attr = [...deserializeAttr(decoder)];
   const children = deserializeList(decoder);
-  return [id, children];
+  return [attr, children];
 }
 
-const OPTIONAL_NONE = 0;
-const OPTIONAL_SOME = 1;
+const ATTRIBUTE_ID = 0;
+const ATTRIBUTE_ON_CLICK = 1;
+const ATTRIBUTE_ON_POINTER_MOVE = 2;
+type AttrTypes = {
+  [ATTRIBUTE_ID]: string;
+  [ATTRIBUTE_ON_CLICK]: Uint8Array;
+  [ATTRIBUTE_ON_POINTER_MOVE]: Uint8Array;
+};
+type Attr = {
+  [K in keyof AttrTypes]: [K, AttrTypes[K]];
+}[keyof AttrTypes];
+
+function* deserializeAttr(decoder: Decoder): Generator<Attr> {
+  const len = decoder.u64();
+  for (let i = 0; i < len; i += 1) {
+    const attr: Attr[0] = decoder.u32() as Attr[0];
+    switch (attr) {
+      case ATTRIBUTE_ID:
+        yield [attr, decoder.string()];
+        break;
+      case ATTRIBUTE_ON_CLICK:
+        yield [attr, deserializeHandlerId(decoder)];
+        break;
+      case ATTRIBUTE_ON_POINTER_MOVE:
+        yield [attr, deserializeHandlerId(decoder)];
+        break;
+      default:
+        unreachable();
+    }
+  }
+}
+
+function deserializeHandlerId(decoder: Decoder): Uint8Array {
+  return decoder.read(12);
+}
 
 export function update() {
   const buffer = internal_update();
   if (buffer) {
+    console.log(buffer);
     const node = applyNode(root, new Decoder(buffer.buffer));
     if (root != node) {
       root = node;
@@ -275,39 +316,58 @@ function applyElement(element: Element, decoder: Decoder): Element {
 }
 
 function applyDiv(div: HTMLDivElement, decoder: Decoder): HTMLDivElement {
-  if (decoder.bool()) {
-    const id = decoder.optional("string");
-    if (id) {
-      div.setAttribute("id", id);
-    } else {
-      div.removeAttribute("id");
-    }
-  }
-  if (decoder.bool()) {
-    const children = applyList(Array.from(div.childNodes), decoder);
-    while (div.firstChild) {
-      div.removeChild(div.firstChild);
-    }
-    div.append(...children);
-  }
-  return div;
+  return applyCommon(div, decoder);
 }
 
 function applySpan(span: HTMLSpanElement, decoder: Decoder): HTMLSpanElement {
-  if (decoder.bool()) {
-    const id = decoder.optional("string");
-    if (id) {
-      span.setAttribute("id", id);
-    } else {
-      span.removeAttribute("id");
+  return applyCommon(span, decoder);
+}
+
+const PATCH_ATTRIBUTE_REMOVE = 0;
+const PATCH_ATTRIBUTE_INSERT = 1;
+
+function applyCommon<E extends Element>(element: E, decoder: Decoder): E {
+  const len = decoder.u64();
+  for (let i = 0; i < len; i += 1) {
+    switch (decoder.u32()) {
+      case PATCH_ATTRIBUTE_REMOVE:
+        switch (decoder.u32()) {
+          case ATTRIBUTE_ID:
+            element.removeAttribute("id");
+            break;
+          case ATTRIBUTE_ON_CLICK:
+            todo();
+          case ATTRIBUTE_ON_POINTER_MOVE:
+            todo();
+          default:
+            unreachable();
+        }
+        break;
+      case PATCH_ATTRIBUTE_INSERT:
+        switch (decoder.u32()) {
+          case ATTRIBUTE_ID:
+            element.setAttribute("id", decoder.string());
+            break;
+          case ATTRIBUTE_ON_CLICK:
+            deserializeHandlerId(decoder);
+            todo();
+          case ATTRIBUTE_ON_POINTER_MOVE:
+            deserializeHandlerId(decoder);
+            todo();
+          default:
+            unreachable();
+        }
+        break;
+      default:
+        unreachable();
     }
   }
   if (decoder.bool()) {
-    const children = applyList(Array.from(span.childNodes), decoder);
-    while (span.firstChild) {
-      span.removeChild(span.firstChild);
+    const children = applyList(Array.from(element.childNodes), decoder);
+    while (element.firstChild) {
+      element.removeChild(element.firstChild);
     }
-    span.append(...children);
+    element.append(...children);
   }
-  return span;
+  return element;
 }

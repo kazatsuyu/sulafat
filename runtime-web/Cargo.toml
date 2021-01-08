@@ -35,6 +35,3 @@ nightly-features = ["sulafat-vdom/nightly-features"]
 [lib]
 path = "rs/lib.rs"
 crate-type = ["cdylib", "rlib"]
-
-[profile.release]
-opt-level = "s"

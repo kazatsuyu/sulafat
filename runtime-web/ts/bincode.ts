@@ -1,86 +1,86 @@
 export class Decoder {
   #buffer: ArrayBufferLike;
-  constructor(buffer: ArrayBufferLike) {
+  public constructor(buffer: ArrayBufferLike) {
     this.#buffer = buffer;
   }
 
-  bool(): boolean {
+  public bool(): boolean {
     return !!this.i8();
   }
 
-  i8(): number {
+  public i8(): number {
     const value = new Int8Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(1);
     return value;
   }
 
-  u8(): number {
+  public u8(): number {
     const value = new Uint8Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(1);
     return value;
   }
 
-  i16(): number {
+  public i16(): number {
     const value = new Int16Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(2);
     return value;
   }
 
-  u16(): number {
+  public u16(): number {
     const value = new Uint16Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(2);
     return value;
   }
 
-  i32(): number {
+  public i32(): number {
     const value = new Int32Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(4);
     return value;
   }
 
-  u32(): number {
+  public u32(): number {
     const value = new Uint32Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(4);
     return value;
   }
 
-  i64(): number {
+  public i64(): number {
     const value = new BigInt64Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(8);
     return Number(value);
   }
 
-  u64(): number {
+  public u64(): number {
     const value = new BigUint64Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(8);
     return Number(value);
   }
 
-  i64n(): bigint {
+  public i64n(): bigint {
     const value = new BigInt64Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(8);
     return value;
   }
 
-  u64n(): bigint {
+  public u64n(): bigint {
     const value = new BigUint64Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(8);
     return value;
   }
 
-  f32(): number {
+  public f32(): number {
     const value = new Float32Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(4);
     return value;
   }
 
-  f64(): number {
+  public f64(): number {
     const value = new Float64Array(this.#buffer, 0, 1)[0];
     this.#buffer = this.#buffer.slice(8);
     return value;
   }
 
-  string(): string {
+  public string(): string {
     const len = this.u64();
     const text_decoder = new TextDecoder("utf-8", { fatal: true });
     const value = text_decoder.decode(this.#buffer.slice(0, len));
@@ -88,7 +88,7 @@ export class Decoder {
     return value;
   }
 
-  char(): number {
+  public char(): number {
     const buf = new Uint8Array(this.#buffer);
     let value = 0xffffffff;
     if (buf[0] < 0x80) {
@@ -157,17 +157,31 @@ export class Decoder {
     return value;
   }
 
-  optional<
+  public optional<
     Method extends Exclude<keyof Decoder, "constructor" | "end" | "optional">
-  >(method: Method): ReturnType<Decoder[Method]> | undefined {
+  >(
+    method: Method,
+    ...args: Parameters<Decoder[Method]>
+  ): ReturnType<Decoder[Method]> | undefined {
     if (this.bool()) {
-      return this[method]() as ReturnType<Decoder[Method]>;
+      return (this as Record<Method, () => unknown>)[method](
+        ...(args as [])
+      ) as ReturnType<Decoder[Method]>;
     }
   }
 
-  end() {
+  public end() {
     if (this.#buffer.byteLength) {
       throw Error("Trailing buffer exists.");
     }
+  }
+
+  public read(n: number): Uint8Array {
+    if (n < this.#buffer.byteLength) {
+      n = this.#buffer.byteLength;
+    }
+    const array = Uint8Array.from(new Uint8Array(this.#buffer, 0, n));
+    this.#buffer = this.#buffer.slice(n);
+    return array;
   }
 }

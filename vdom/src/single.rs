@@ -7,7 +7,7 @@ use serde::{
     ser::SerializeTupleVariant,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 
 #[derive(Debug)]
 pub enum Single<Msg> {
@@ -29,12 +29,6 @@ impl<Msg> From<Single<Msg>> for Node<Msg> {
     fn from(node: Single<Msg>) -> Self {
         Node::Single(node)
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchSingle<Msg> {
-    Replace(Single<Msg>),
-    Element(PatchElement<Msg>),
 }
 
 impl<Msg> From<PatchSingle<Msg>> for PatchNode<Msg> {
@@ -175,6 +169,70 @@ impl<Msg> PartialEq for Single<Msg> {
 }
 
 impl<Msg> Eq for Single<Msg> {}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum PatchSingle<Msg> {
+    Replace(Single<Msg>),
+    Element(PatchElement<Msg>),
+}
+
+impl<Msg> Serialize for PatchSingle<Msg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            PatchSingle::Replace(single) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchSingle", 0, "Replace", 1)?;
+                variant.serialize_field(single)?;
+                variant.end()
+            }
+            PatchSingle::Element(patch) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchSingle", 1, "Element", 1)?;
+                variant.serialize_field(patch)?;
+                variant.end()
+            }
+        }
+    }
+}
+
+impl<'de, Msg> Deserialize<'de> for PatchSingle<Msg> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PatchSingleVisitor<Msg>(std::marker::PhantomData<Msg>);
+
+        impl<'de, Msg> Visitor<'de> for PatchSingleVisitor<Msg> {
+            type Value = PatchSingle<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "variant of Replace or Element")
+            }
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: EnumAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                enum VariantTag {
+                    Replace,
+                    Element,
+                }
+                let (v, variant) = data.variant::<VariantTag>()?;
+                Ok(match v {
+                    VariantTag::Replace => PatchSingle::Replace(variant.newtype_variant()?),
+                    VariantTag::Element => PatchSingle::Element(variant.newtype_variant()?),
+                })
+            }
+        }
+        deserializer.deserialize_enum(
+            "PatchSingle",
+            &["Replace", "Element"],
+            PatchSingleVisitor(Default::default()),
+        )
+    }
+}
 
 #[cfg(test)]
 mod test {

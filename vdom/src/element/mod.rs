@@ -3,8 +3,8 @@ mod common;
 mod div;
 mod span;
 
-pub use attribute::{id, on_click, on_pointer_move, Attribute, AttributeType};
-pub use common::{Common, PatchAttributeOp, PatchCommon};
+pub use attribute::{id, on_click, on_pointer_move, Attribute, AttributeType, PatchAttribute};
+pub use common::{Common, PatchCommon};
 pub use div::{Div, PatchDiv};
 pub use span::{PatchSpan, Span};
 
@@ -76,13 +76,6 @@ impl<Msg> From<Element<Msg>> for Node<Msg> {
     fn from(element: Element<Msg>) -> Self {
         Single::from(element).into()
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchElement<Msg> {
-    Replace(Element<Msg>),
-    Div(PatchDiv<Msg>),
-    Span(PatchSpan<Msg>),
 }
 
 impl<Msg> From<PatchElement<Msg>> for PatchSingle<Msg> {
@@ -210,10 +203,82 @@ impl<'de, Msg> Deserialize<'de> for Element<Msg> {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum PatchElement<Msg> {
+    Replace(Element<Msg>),
+    Div(PatchDiv<Msg>),
+    Span(PatchSpan<Msg>),
+}
+
+impl<Msg> Serialize for PatchElement<Msg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            PatchElement::Replace(element) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchElement", 0, "Replace", 1)?;
+                variant.serialize_field(element)?;
+                variant.end()
+            }
+            PatchElement::Div(patch) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchElement", 1, "Div", 1)?;
+                variant.serialize_field(patch)?;
+                variant.end()
+            }
+            PatchElement::Span(patch) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchElement", 2, "Span", 1)?;
+                variant.serialize_field(patch)?;
+                variant.end()
+            }
+        }
+    }
+}
+
+impl<'de, Msg> Deserialize<'de> for PatchElement<Msg> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PatchElementVisitor<Msg>(std::marker::PhantomData<Msg>);
+        impl<'de, Msg> Visitor<'de> for PatchElementVisitor<Msg> {
+            type Value = PatchElement<Msg>;
+            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                write!(formatter, "variant of Replace or Div or Span")
+            }
+            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
+            where
+                A: EnumAccess<'de>,
+            {
+                #[derive(Deserialize)]
+                enum VariantTag {
+                    Replace,
+                    Div,
+                    Span,
+                }
+                let (v, variant) = data.variant::<VariantTag>()?;
+                Ok(match v {
+                    VariantTag::Replace => PatchElement::Replace(variant.newtype_variant()?),
+                    VariantTag::Div => PatchElement::Div(variant.newtype_variant()?),
+                    VariantTag::Span => PatchElement::Span(variant.newtype_variant()?),
+                })
+            }
+        }
+        deserializer.deserialize_enum(
+            "PatchElement",
+            &["Div", "Span"],
+            PatchElementVisitor(Default::default()),
+        )
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{
-        id, Common, Diff, Div, Element, PatchAttributeOp, PatchCommon, PatchDiv, PatchSpan, Span,
+        id, Common, Diff, Div, Element, PatchAttribute, PatchCommon, PatchDiv, PatchSpan, Span,
     };
 
     #[test]
@@ -242,7 +307,7 @@ mod test {
             Some(
                 PatchDiv {
                     common: PatchCommon {
-                        attr: vec![PatchAttributeOp::Insert(id("b".into()))],
+                        attr: vec![PatchAttribute::Insert(id("b".into()))],
                         children: Default::default()
                     }
                 }
@@ -274,7 +339,7 @@ mod test {
             Some(
                 PatchSpan {
                     common: PatchCommon {
-                        attr: vec![super::PatchAttributeOp::Insert(super::attribute::id(
+                        attr: vec![super::PatchAttribute::Insert(super::attribute::id(
                             "b".into()
                         ))],
                         children: Default::default()

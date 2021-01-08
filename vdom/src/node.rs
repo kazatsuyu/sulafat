@@ -7,7 +7,7 @@ use serde::{
     ser::SerializeTupleVariant,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 
 #[derive(Debug)]
 pub enum Node<Msg> {
@@ -32,13 +32,6 @@ impl<Msg> Node<Msg> {
             Node::Component(_) => todo!(),
         }
     }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchNode<Msg> {
-    Replace(Node<Msg>),
-    Single(PatchSingle<Msg>),
-    List(PatchList<Msg>),
 }
 
 impl<Msg> Diff for Node<Msg> {
@@ -150,6 +143,40 @@ impl<Msg> PartialEq for Node<Msg> {
 }
 
 impl<Msg> Eq for Node<Msg> {}
+
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize)]
+pub enum PatchNode<Msg> {
+    Replace(Node<Msg>),
+    Single(PatchSingle<Msg>),
+    List(PatchList<Msg>),
+}
+
+impl<Msg> Serialize for PatchNode<Msg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            PatchNode::Replace(node) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchNode", 0, "Replace", 1)?;
+                variant.serialize_field(node)?;
+                variant.end()
+            }
+            PatchNode::Single(patch) => {
+                let mut variant =
+                    serializer.serialize_tuple_variant("PatchNode", 1, "Single", 1)?;
+                variant.serialize_field(patch)?;
+                variant.end()
+            }
+            PatchNode::List(patch) => {
+                let mut variant = serializer.serialize_tuple_variant("PatchNode", 2, "List", 1)?;
+                variant.serialize_field(patch)?;
+                variant.end()
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
