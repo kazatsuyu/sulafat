@@ -1,4 +1,4 @@
-use crate::ClosureId;
+use crate::{util::force_cast, ClosureId};
 use serde::{
     de::{EnumAccess, VariantAccess, Visitor},
     ser::SerializeTupleVariant,
@@ -42,10 +42,10 @@ impl<Args, Msg> Handler<Args, Msg> {
         Args: 'static,
         Msg2: 'static + From<Msg>,
     {
-        Handler {
-            id: self.id,
-            handle: Box::new(move |args| self.handle.invoke(args).into()),
-        }
+        force_cast(self).unwrap_or_else(|this| Handler {
+            id: this.id,
+            handle: Box::new(move |args| this.handle.invoke(args).into()),
+        })
     }
 
     fn as_any(self: Rc<Self>) -> Rc<dyn Any>

@@ -4,7 +4,7 @@ pub mod steal_hasher;
 pub(crate) use raw_state::{RawState, RawStateOf};
 pub(crate) use steal_hasher::StealHasher;
 
-use std::any::TypeId;
+use std::{any::TypeId, mem::forget};
 
 unsafe fn unsafe_cast<T, U>(t: &T) -> &U {
     let ptr = t as *const T as *const U;
@@ -20,6 +20,25 @@ where
         Some(unsafe { unsafe_cast(t) })
     } else {
         None
+    }
+}
+
+unsafe fn unsafe_force_cast<T, U>(t: T) -> U {
+    let ptr = &t as *const T as *const U;
+    let u = unsafe { ptr.read() };
+    forget(t);
+    u
+}
+
+pub(crate) fn force_cast<T, U>(t: T) -> Result<U, T>
+where
+    T: 'static,
+    U: 'static,
+{
+    if TypeId::of::<T>() == TypeId::of::<U>() {
+        Ok(unsafe { unsafe_force_cast(t) })
+    } else {
+        Err(t)
     }
 }
 
