@@ -7,7 +7,7 @@
   "repository": "https://github.com/kazatsuyu/sulafat.git",
   "license": "(MIT OR Apache-2.0)",
   "scripts": {
-    "build": "wasm-pack build --out-dir wasm --target web -- --features nightly-features && tsc",
+    "build": "wasm-pack build --dev --out-dir wasm --target web -- --features nightly-features && tsc",
     "start": "simple-http-server"
   },
   "devDependencies": {

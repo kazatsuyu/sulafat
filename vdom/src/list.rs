@@ -1,3 +1,5 @@
+use crate::{CachedView, ClosureId};
+
 use super::{ApplyResult, Diff, Node, PatchNode, PatchSingle, Single};
 use serde::{
     de::{EnumAccess, SeqAccess, VariantAccess, Visitor},
@@ -6,18 +8,21 @@ use serde::{
 };
 use serde_derive::Deserialize;
 use std::{
+    any::Any,
     cmp::min,
     collections::HashMap,
     fmt::{self, Formatter},
     iter::FromIterator,
     mem::replace,
     ops::Deref,
+    rc::Weak,
 };
 
 #[derive(Default, Debug)]
 pub struct List<Msg> {
     flat_len: usize,
     list: Vec<Node<Msg>>,
+    full_rendered_count: usize,
 }
 
 impl<Msg> List<Msg> {
@@ -35,33 +40,49 @@ impl<Msg> List<Msg> {
                 map.entry(key).or_insert(index);
             }
             vec.push(i);
-            i += node.flat_len();
+            i += node.flat_len().unwrap();
         }
         (map, vec)
     }
-    pub(super) fn flat_len(&self) -> usize {
-        self.iter().map(|node| node.flat_len()).sum()
+    pub(super) fn flat_len(&self) -> Option<usize> {
+        if self.is_full_rendered() {
+            Some(self.flat_len)
+        } else {
+            None
+        }
     }
 
     pub fn push(&mut self, node: Node<Msg>) {
-        self.flat_len += node.flat_len();
+        if node.is_full_rendered() {
+            self.full_rendered_count += 1;
+            self.flat_len += node.flat_len().unwrap();
+        }
         self.list.push(node);
     }
 
     pub fn pop(&mut self) -> Option<Node<Msg>> {
         let node = self.list.pop()?;
-        self.flat_len -= node.flat_len();
+        if node.is_full_rendered() {
+            self.full_rendered_count -= 1;
+            self.flat_len -= node.flat_len().unwrap();
+        }
         Some(node)
     }
 
     pub fn insert(&mut self, index: usize, node: Node<Msg>) {
-        self.flat_len += node.flat_len();
+        if node.is_full_rendered() {
+            self.full_rendered_count += 1;
+            self.flat_len += node.flat_len().unwrap();
+        }
         self.list.insert(index, node);
     }
 
     pub fn remove(&mut self, index: usize) -> Node<Msg> {
         let node = self.list.remove(index);
-        self.flat_len -= node.flat_len();
+        if node.is_full_rendered() {
+            self.full_rendered_count -= 1;
+        }
+        self.flat_len -= node.flat_len().unwrap();
         node
     }
 
@@ -70,7 +91,7 @@ impl<Msg> List<Msg> {
             match node {
                 Node::List(mut list) => list.flat_drain_impl(buffer),
                 Node::Single(single) => buffer.push(Some(single)),
-                Node::Component(_) => todo!(),
+                Node::CachedView(_) => unreachable!(),
             }
         }
     }
@@ -103,10 +124,10 @@ impl<Msg> List<Msg> {
     }
 
     fn flatten(&mut self) {
-        if self.len() == self.flat_len {
+        if self.len() == self.flat_len().unwrap() {
             return;
         }
-        if self.capacity() < self.flat_len() {
+        if self.capacity() < self.flat_len().unwrap() {
             let list = replace(&mut self.list, Vec::with_capacity(self.flat_len));
             self.flatten_new(list);
         } else {
@@ -123,6 +144,28 @@ impl<Msg> List<Msg> {
                 }
             }
             self.list = unsafe { Vec::from_raw_parts(ptr, self.flat_len, capacity) };
+        }
+    }
+
+    pub(crate) fn is_full_rendered(&self) -> bool {
+        self.full_rendered_count == self.len()
+    }
+
+    pub(crate) fn full_render(&mut self) {
+        for node in &mut self.list {
+            if !node.is_full_rendered() {
+                node.full_render();
+                self.full_rendered_count += 1;
+            }
+        }
+    }
+
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        for node in &self.list {
+            node.pick_handler(handlers)
         }
     }
 }
@@ -147,13 +190,9 @@ impl<Msg> From<PatchList<Msg>> for PatchNode<Msg> {
 }
 
 impl<Msg> List<Msg> {
-    fn add_patch(&self, patches: &mut Vec<PatchListOp<Msg>>) {
-        for node in &self.list {
-            match node {
-                Node::Single(single) => patches.push(PatchListOp::New(single.clone())),
-                Node::List(list) => list.add_patch(patches),
-                Node::Component(_) => todo!(),
-            }
+    pub(crate) fn add_patch(&mut self, patches: &mut Vec<PatchListOp<Msg>>) {
+        for node in &mut self.list {
+            node.add_patch(patches);
         }
     }
 }
@@ -166,10 +205,42 @@ struct FlatDiffContext<Msg> {
 }
 
 impl<Msg> FlatDiffContext<Msg> {
-    fn flat_diff(&mut self, this: &List<Msg>, other: &List<Msg>, this_flat_index: usize) {
+    fn node_diff(&mut self, this: &Node<Msg>, other: &mut Node<Msg>, this_flat_index: usize) {
+        match (&this, other) {
+            (Node::Single(this), Node::Single(other)) => {
+                let patch = match (this.diff(other), this_flat_index == self.flat_index) {
+                    (Some(PatchSingle::Replace(single)), _) => PatchListOp::New(single),
+                    (Some(patch), false) => {
+                        self.is_move = true;
+                        PatchListOp::FromModify(this_flat_index, patch)
+                    }
+                    (Some(patch), true) => PatchListOp::Modify(patch),
+                    (None, false) => {
+                        self.is_move = true;
+                        PatchListOp::From(this_flat_index)
+                    }
+                    (None, true) => {
+                        self.nop_count += 1;
+                        PatchListOp::Nop
+                    }
+                };
+                self.patches.push(patch);
+                self.flat_index += 1;
+            }
+            (Node::List(this), Node::List(other)) => self.flat_diff(this, other, this_flat_index),
+            (Node::CachedView(this), Node::CachedView(other)) => {
+                self.cached_view_flat_diff(this, other, this_flat_index)
+            }
+            (_, node) => {
+                node.add_patch(&mut self.patches);
+                self.flat_index += node.flat_len().unwrap();
+            }
+        }
+    }
+    fn flat_diff(&mut self, this: &List<Msg>, other: &mut List<Msg>, this_flat_index: usize) {
         let (key_map, indexes) = this.key_map_indexes();
         let mut this_index = 0;
-        for node in &other.list {
+        for node in &mut other.list {
             while this.get(this_index).and_then(|node| node.key()).is_some() {
                 this_index += 1;
             }
@@ -184,62 +255,40 @@ impl<Msg> FlatDiffContext<Msg> {
                 replace(&mut this_index, i)
             };
             if this_index < this.len() {
-                match (&this[this_index], node) {
-                    (Node::Single(this), Node::Single(other)) => {
-                        let this_flat_index = this_flat_index + indexes[this_index];
-                        let patch = match (this.diff(other), this_flat_index == self.flat_index) {
-                            (Some(PatchSingle::Replace(single)), _) => PatchListOp::New(single),
-                            (Some(patch), false) => {
-                                self.is_move = true;
-                                PatchListOp::FromModify(this_flat_index, patch)
-                            }
-                            (Some(patch), true) => PatchListOp::Modify(patch),
-                            (None, false) => {
-                                self.is_move = true;
-                                PatchListOp::From(this_flat_index)
-                            }
-                            (None, true) => {
-                                self.nop_count += 1;
-                                PatchListOp::Nop
-                            }
-                        };
-                        self.patches.push(patch);
-                        self.flat_index += 1;
-                    }
-                    (Node::List(this), Node::List(other)) => {
-                        self.flat_diff(this, other, this_flat_index + indexes[this_index])
-                    }
-                    (Node::Component(_), Node::Component(_)) => todo!(),
-                    (_, Node::Single(other)) => {
-                        self.patches.push(PatchListOp::New(other.clone()));
-                        self.flat_index += 1;
-                    }
-                    (_, Node::List(other)) => {
-                        other.add_patch(&mut self.patches);
-                        self.flat_index += other.flat_len();
-                    }
-                    (_, Node::Component(_)) => todo!(),
-                }
+                self.node_diff(
+                    &this.list[this_index],
+                    node,
+                    this_flat_index + indexes[this_index],
+                )
             } else {
-                self.flat_index += node.flat_len();
-                match node {
-                    Node::Single(other) => {
-                        self.patches.push(PatchListOp::New(other.clone()));
-                    }
-                    Node::List(other) => {
-                        other.add_patch(&mut self.patches);
-                        self.flat_index += other.flat_len();
-                    }
-                    Node::Component(_) => todo!(),
-                }
+                node.add_patch(&mut self.patches);
+                self.flat_index += node.flat_len().unwrap();
             }
         }
+    }
+
+    fn cached_view_flat_diff(
+        &mut self,
+        this: &CachedView<Msg>,
+        other: &mut CachedView<Msg>,
+        this_flat_index: usize,
+    ) {
+        if this.is_different(other) {
+            other.render().add_patch(&mut self.patches);
+        } else if !this.share_cache_if_same(other) {
+            self.node_diff(
+                unsafe { this.rendered() }.unwrap(),
+                other.render(),
+                this_flat_index,
+            )
+        }
+        self.flat_index += other.flat_len().unwrap();
     }
 }
 
 impl<Msg> Diff for List<Msg> {
     type Patch = PatchList<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         let mut context = FlatDiffContext {
             nop_count: 0,
             is_move: false,
@@ -248,7 +297,7 @@ impl<Msg> Diff for List<Msg> {
         };
         context.flat_diff(self, other, 0);
         Some(
-            if !context.is_move && context.nop_count >= (other.flat_len() + 1) / 2 {
+            if !context.is_move && context.nop_count >= (other.flat_len().unwrap() + 1) / 2 {
                 let len = other.len();
                 let entries = context
                     .patches
@@ -345,9 +394,16 @@ impl<Msg> Diff for List<Msg> {
 
 impl<Msg> From<Vec<Node<Msg>>> for List<Msg> {
     fn from(list: Vec<Node<Msg>>) -> Self {
+        let (flat_len, full_rendered_count) = list.iter().fold((0, 0), |(a, b), node| {
+            (
+                a + node.flat_len().unwrap(),
+                b + node.is_full_rendered() as usize,
+            )
+        });
         Self {
-            flat_len: list.iter().map(|node| node.flat_len()).sum(),
+            flat_len,
             list,
+            full_rendered_count: full_rendered_count.into(),
         }
     }
 }
@@ -359,11 +415,19 @@ impl<Msg> FromIterator<Node<Msg>> for List<Msg> {
         let len = max.unwrap_or(min);
         let mut list = Vec::with_capacity(len);
         let mut flat_len = 0;
+        let mut full_rendered_count = 0;
         for node in iter {
-            flat_len += node.flat_len();
+            if node.is_full_rendered() {
+                full_rendered_count += 1;
+                flat_len += node.flat_len().unwrap();
+            }
             list.push(node);
         }
-        Self { flat_len, list }
+        Self {
+            flat_len,
+            list,
+            full_rendered_count: full_rendered_count,
+        }
     }
 }
 
@@ -385,13 +449,52 @@ impl<Msg> List<Msg> {
         S: Serializer,
     {
         for node in &self.list {
-            match node {
-                Node::Single(single) => serialize_seq.serialize_element(single)?,
-                Node::List(list) => list.serialize_impl::<S>(serialize_seq)?,
-                Node::Component(_) => todo!(),
+            Self::serialize_node::<S>(node, serialize_seq)?;
+        }
+        Ok(())
+    }
+    fn serialize_node<S>(
+        node: &Node<Msg>,
+        serialize_seq: &mut S::SerializeSeq,
+    ) -> Result<(), S::Error>
+    where
+        S: Serializer,
+    {
+        match node {
+            Node::Single(single) => serialize_seq.serialize_element(single)?,
+            Node::List(list) => list.serialize_impl::<S>(serialize_seq)?,
+            Node::CachedView(view) => {
+                Self::serialize_node::<S>(unsafe { view.rendered() }.unwrap(), serialize_seq)?;
             }
         }
         Ok(())
+    }
+}
+
+impl<Msg> PatchList<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        match self {
+            PatchList::All(all) => {
+                for op in all {
+                    match op {
+                        PatchListOp::Nop | PatchListOp::From(_) => {}
+                        PatchListOp::Modify(patch) | PatchListOp::FromModify(_, patch) => {
+                            patch.pick_handler(handlers)
+                        }
+                        PatchListOp::New(single) => single.pick_handler(handlers),
+                    }
+                }
+            }
+            PatchList::Entries(_, entries) => {
+                for (_, patch) in entries {
+                    patch.pick_handler(handlers)
+                }
+            }
+            PatchList::Truncate(_) => {}
+        }
     }
 }
 
@@ -426,9 +529,11 @@ impl<'de, Msg> Deserialize<'de> for List<Msg> {
                 while let Some(single) = seq.next_element::<Single<Msg>>()? {
                     list.push(single.into());
                 }
+                let len = list.len();
                 Ok(List {
-                    flat_len: list.len(),
+                    flat_len: len,
                     list,
+                    full_rendered_count: len.into(),
                 })
             }
         }
@@ -441,6 +546,7 @@ impl<Msg> Clone for List<Msg> {
         Self {
             flat_len: self.flat_len,
             list: self.list.clone(),
+            full_rendered_count: self.full_rendered_count,
         }
     }
 }
@@ -631,24 +737,24 @@ mod test {
     #[test]
     fn empty() {
         let list1 = List::<()>::default();
-        let list2 = List::default();
-        assert_eq!(list1.diff(&list2), None)
+        let mut list2 = List::default();
+        assert_eq!(list1.diff(&mut list2), None)
     }
 
     #[test]
     fn same() {
         let list1: List<()> = vec![Div::default().into()].into();
-        let list2 = vec![Div::default().into()].into();
+        let mut list2 = vec![Div::default().into()].into();
         assert_eq!(list1, list2);
-        assert_eq!(list1.diff(&list2), None);
+        assert_eq!(list1.diff(&mut list2), None);
     }
 
     #[test]
     fn append() {
         let mut list1 = List::<()>::default();
-        let list2 = vec![Div::default().into()].into();
+        let mut list2 = vec![Div::default().into()].into();
         assert_ne!(list1, list2);
-        let patch = list1.diff(&list2);
+        let patch = list1.diff(&mut list2);
         assert_eq!(
             patch,
             Some(PatchList::All(vec![PatchListOp::New(
@@ -662,9 +768,9 @@ mod test {
     #[test]
     fn remove() {
         let mut list1: List<()> = vec![Div::default().into()].into();
-        let list2 = List::default();
+        let mut list2 = List::default();
         assert_ne!(list1, list2);
-        let patch = list1.diff(&list2);
+        let patch = list1.diff(&mut list2);
         assert_eq!(patch, Some(PatchList::Truncate(0)),);
         list1.apply(patch.unwrap()).unwrap();
         assert_eq!(list1, list2)
@@ -678,14 +784,14 @@ mod test {
             Div::default().into(),
         ]
         .into();
-        let list2 = vec![
+        let mut list2 = vec![
             Div::default().into(),
             Span::default().into(),
             Div::default().into(),
         ]
         .into();
         assert_ne!(list1, list2);
-        let patch = list1.diff(&list2);
+        let patch = list1.diff(&mut list2);
         assert_eq!(
             patch,
             Some(PatchList::Entries(
@@ -704,13 +810,13 @@ mod test {
             Div::default().into(),
         ]
         .into();
-        let list2: List<()> = vec![
+        let mut list2: List<()> = vec![
             Div::default().into(),
             Div::new(Common::new(Some("a".into()), vec![], vec![].into())).into(),
         ]
         .into();
         assert_ne!(list1, list2);
-        let patch = list1.diff(&list2);
+        let patch = list1.diff(&mut list2);
         assert_eq!(
             patch,
             Some(PatchList::All(vec![
@@ -729,13 +835,13 @@ mod test {
             Div::default().into(),
         ]
         .into();
-        let list2: List<()> = vec![
+        let mut list2: List<()> = vec![
             Div::new(Common::new(Some("b".into()), vec![], vec![].into())).into(),
             Div::default().into(),
         ]
         .into();
         assert_ne!(list1, list2);
-        let patch = list1.diff(&list2);
+        let patch = list1.diff(&mut list2);
         assert_eq!(
             patch,
             Some(PatchList::Entries(
@@ -759,13 +865,13 @@ mod test {
             Div::default().into(),
         ]
         .into();
-        let list2: List<()> = vec![
+        let mut list2: List<()> = vec![
             Div::default().into(),
             Div::new(Common::new(Some("b".into()), vec![], vec![].into())).into(),
         ]
         .into();
         assert_ne!(list1, list2);
-        let patch = list1.diff(&list2);
+        let patch = list1.diff(&mut list2);
         assert_eq!(
             patch,
             Some(PatchList::All(vec![

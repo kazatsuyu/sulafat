@@ -1,6 +1,7 @@
 import wasm_init, {
   internal_init,
-  internal_update,
+  internal_render,
+  internal_on_event,
 } from "../wasm/sulafat_runtime_web.js";
 import { Decoder } from "./bincode.js";
 import { todo, unreachable } from "./util.js";
@@ -10,6 +11,7 @@ let root: Node | Node[];
 export async function init() {
   await wasm_init("/wasm/sulafat_runtime_web_bg.wasm");
   const buffer = internal_init();
+  console.log(buffer);
   const decoder = new Decoder(buffer.buffer);
   const node = deserializeNode(decoder);
   decoder.end();
@@ -71,8 +73,36 @@ function deserializeSingle(decoder: Decoder): Node {
 const ELEMENT_DIV = 0;
 const ELEMENT_SPAN = 1;
 
+const eventHandlerMap: WeakMap<
+  EventTarget,
+  Record<string, EventListener>
+> = new WeakMap();
+function elementHandlersOf(e: EventTarget): Record<string, EventListener> {
+  const item = eventHandlerMap.get(e);
+  if (item) {
+    return item;
+  }
+  const newItem = Object.create(null) as Record<string, EventListener>;
+  eventHandlerMap.set(e, newItem);
+  return newItem;
+}
+function registerEventListener(
+  e: EventTarget,
+  event: string,
+  handler: (..._: never[]) => void
+) {
+  elementHandlersOf(e)[event] = handler as EventListener;
+  e.addEventListener(event, handler as EventListener);
+}
+function unregisterEventListener(e: EventTarget, event: string) {
+  const handler = elementHandlersOf(e)[event];
+  if (handler) {
+    e.removeEventListener(event, handler);
+  }
+}
+
 function deserializeElement(decoder: Decoder): Element {
-  let element: Element;
+  let element: HTMLElement;
   switch (decoder.u32()) {
     case ELEMENT_DIV: {
       element = document.createElementNS("http://www.w3.org/1999/xhtml", "div");
@@ -94,18 +124,29 @@ function deserializeElement(decoder: Decoder): Element {
       case ATTRIBUTE_ID:
         element.setAttribute("id", a[1]);
         break;
-      case ATTRIBUTE_ON_CLICK:
-        element.addEventListener("click", () => {
-          console.log(a[1]);
-          todo();
+      case ATTRIBUTE_ON_CLICK: {
+        const id = a[1];
+        const buf = new Uint8Array(16);
+        buf.set(id);
+        registerEventListener(element, "click", () => {
+          console.log(id);
+          buf.set(new Uint8Array(new Uint32Array([0]).buffer), 12);
+          internal_on_event(buf);
         });
         break;
-      case ATTRIBUTE_ON_POINTER_MOVE:
-        element.addEventListener("pointermove", () => {
-          console.log(a[1]);
-          todo();
+      }
+      case ATTRIBUTE_ON_POINTER_MOVE: {
+        const id = a[1];
+        const buf = new Uint8Array(32);
+        buf.set(id);
+        buf.set(new Uint8Array(new Uint32Array([1]).buffer), 12);
+        registerEventListener(element, "pointermove", (e: PointerEvent) => {
+          console.log(id);
+          buf.set(new Uint8Array(new Float64Array([e.x, e.y]).buffer), 16);
+          internal_on_event(buf);
         });
         break;
+      }
     }
   }
   element.append(...children);
@@ -154,8 +195,8 @@ function deserializeHandlerId(decoder: Decoder): Uint8Array {
   return decoder.read(12);
 }
 
-export function update() {
-  const buffer = internal_update();
+export function render() {
+  const buffer = internal_render();
   if (buffer) {
     console.log(buffer);
     const node = applyNode(root, new Decoder(buffer.buffer));
@@ -336,9 +377,11 @@ function applyCommon<E extends Element>(element: E, decoder: Decoder): E {
             element.removeAttribute("id");
             break;
           case ATTRIBUTE_ON_CLICK:
-            todo();
+            unregisterEventListener(element, "click");
+            break;
           case ATTRIBUTE_ON_POINTER_MOVE:
-            todo();
+            unregisterEventListener(element, "pointermove");
+            break;
           default:
             unreachable();
         }
@@ -348,12 +391,30 @@ function applyCommon<E extends Element>(element: E, decoder: Decoder): E {
           case ATTRIBUTE_ID:
             element.setAttribute("id", decoder.string());
             break;
-          case ATTRIBUTE_ON_CLICK:
-            deserializeHandlerId(decoder);
-            todo();
-          case ATTRIBUTE_ON_POINTER_MOVE:
-            deserializeHandlerId(decoder);
-            todo();
+          case ATTRIBUTE_ON_CLICK: {
+            unregisterEventListener(element, "click");
+            const id = deserializeHandlerId(decoder);
+            const buf = new Uint8Array(16);
+            buf.set(id);
+            registerEventListener(element, "click", () => {
+              console.log(id);
+              buf.set(new Uint8Array(new Uint32Array([0]).buffer), 12);
+              internal_on_event(buf);
+            });
+            break;
+          }
+          case ATTRIBUTE_ON_POINTER_MOVE: {
+            const id = deserializeHandlerId(decoder);
+            const buf = new Uint8Array(32);
+            buf.set(id);
+            buf.set(new Uint8Array(new Uint32Array([1]).buffer), 12);
+            registerEventListener(element, "pointermove", (e: PointerEvent) => {
+              console.log(id);
+              buf.set(new Uint8Array(new Float64Array([e.x, e.y]).buffer), 16);
+              internal_on_event(buf);
+            });
+            break;
+          }
           default:
             unreachable();
         }

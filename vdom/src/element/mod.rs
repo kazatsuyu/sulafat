@@ -3,10 +3,14 @@ mod common;
 mod div;
 mod span;
 
-pub use attribute::{id, on_click, on_pointer_move, Attribute, AttributeType, PatchAttribute};
+pub use attribute::{
+    id, on_click, on_pointer_move, Attribute, AttributeType, Handler, PatchAttribute,
+};
 pub use common::{Common, PatchCommon};
 pub use div::{Div, PatchDiv};
 pub use span::{PatchSpan, Span};
+
+use crate::ClosureId;
 
 use super::{ApplyResult, Diff, List, Node, PatchList, PatchNode, PatchSingle, Single};
 
@@ -16,7 +20,12 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use serde_derive::{Deserialize, Serialize};
-use std::fmt::{self, Formatter};
+use std::{
+    any::Any,
+    collections::HashMap,
+    fmt::{self, Formatter},
+    rc::Weak,
+};
 use sulafat_macros::with_types;
 
 #[with_types]
@@ -64,6 +73,24 @@ impl<Msg> Element<Msg> {
     pub fn key(&self) -> &Option<String> {
         &self.common().key
     }
+
+    pub(crate) fn is_full_rendered(&self) -> bool {
+        self.common().children.is_full_rendered()
+    }
+
+    pub(crate) fn full_render(&mut self) {
+        self.common_mut().children.full_render()
+    }
+
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        for attr in &self.common().attr {
+            attr.pick_handler(handlers)
+        }
+        self.common().children.pick_handler(handlers)
+    }
 }
 
 impl<Msg> From<Element<Msg>> for Single<Msg> {
@@ -95,7 +122,7 @@ impl<Msg> From<PatchElement<Msg>> for PatchNode<Msg> {
 
 impl<Msg> Diff for Element<Msg> {
     type Patch = PatchElement<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         use Element::*;
         if self.key() != other.key() {
             return Some(PatchElement::Replace(other.clone()));
@@ -103,7 +130,7 @@ impl<Msg> Diff for Element<Msg> {
         Some(match (self, other) {
             (Div(div1), Div(div2)) => div1.diff(div2)?.into(),
             (Span(div1), Span(div2)) => div1.diff(div2)?.into(),
-            _ => PatchElement::Replace(other.clone()),
+            (_, other) => PatchElement::Replace(other.clone()),
         })
     }
 
@@ -210,6 +237,19 @@ pub enum PatchElement<Msg> {
     Span(PatchSpan<Msg>),
 }
 
+impl<Msg> PatchElement<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        match self {
+            PatchElement::Replace(element) => element.pick_handler(handlers),
+            PatchElement::Div(div) => div.pick_handler(handlers),
+            PatchElement::Span(span) => span.pick_handler(handlers),
+        }
+    }
+}
+
 impl<Msg> Serialize for PatchElement<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -284,24 +324,24 @@ mod test {
     #[test]
     fn div_same() {
         let div1: Element<()> = Div::default().into();
-        let div2 = Div::default().into();
-        assert_eq!(div1.diff(&div2), None);
+        let mut div2 = Div::default().into();
+        assert_eq!(div1.diff(&mut div2), None);
     }
 
     #[test]
     fn span_same() {
         let span1: Element<()> = Span::default().into();
-        let span2 = Span::default().into();
-        assert_eq!(span1.diff(&span2), None);
+        let mut span2 = Span::default().into();
+        assert_eq!(span1.diff(&mut span2), None);
     }
 
     #[test]
     fn div_different_id() {
         let mut div1: Element<()> =
             Div::new(Common::new(None, vec![id("a".into())], Default::default())).into();
-        let div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default())).into();
+        let mut div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default())).into();
         assert_ne!(div1, div2);
-        let patch = div1.diff(&div2);
+        let patch = div1.diff(&mut div2);
         assert_eq!(
             patch,
             Some(
@@ -326,14 +366,14 @@ mod test {
             Default::default(),
         ))
         .into();
-        let span2 = Span::new(Common::new(
+        let mut span2 = Span::new(Common::new(
             None,
             vec![super::attribute::id("b".into())],
             Default::default(),
         ))
         .into();
         assert_ne!(span1, span2);
-        let patch = span1.diff(&span2);
+        let patch = span1.diff(&mut span2);
         assert_eq!(
             patch,
             Some(
@@ -356,9 +396,9 @@ mod test {
     fn div_different_key() {
         let mut div1: Element<()> =
             Div::new(Common::new(Some("a".into()), vec![], Default::default())).into();
-        let div2 = Div::new(Common::new(Some("b".into()), vec![], Default::default())).into();
+        let mut div2 = Div::new(Common::new(Some("b".into()), vec![], Default::default())).into();
         assert_ne!(div1, div2);
-        let patch = div1.diff(&div2);
+        let patch = div1.diff(&mut div2);
         assert_eq!(patch, Some(super::PatchElement::Replace(div2.clone())));
         div1.apply(patch.unwrap()).unwrap();
         assert_eq!(div1, div2);
@@ -368,9 +408,9 @@ mod test {
     fn span_different_key() {
         let mut span1: Element<()> =
             Span::new(Common::new(Some("a".into()), vec![], Default::default())).into();
-        let span2 = Span::new(Common::new(Some("b".into()), vec![], Default::default())).into();
+        let mut span2 = Span::new(Common::new(Some("b".into()), vec![], Default::default())).into();
         assert_ne!(span1, span2);
-        let patch = span1.diff(&span2);
+        let patch = span1.diff(&mut span2);
         assert_eq!(patch, Some(super::PatchElement::Replace(span2.clone())));
         span1.apply(patch.unwrap()).unwrap();
         assert_eq!(span1, span2);
@@ -379,9 +419,9 @@ mod test {
     #[test]
     fn element_different_tag() {
         let mut div: Element<()> = Div::default().into();
-        let span = Span::default().into();
+        let mut span = Span::default().into();
         assert_ne!(div, span);
-        let patch = div.diff(&span);
+        let patch = div.diff(&mut span);
         assert_eq!(patch, Some(super::PatchElement::Replace(span.clone())));
         div.apply(patch.unwrap()).unwrap();
         assert_eq!(div, span);

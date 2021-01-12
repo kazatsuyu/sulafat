@@ -1,4 +1,6 @@
-use std::fmt;
+use std::{any::Any, collections::HashMap, fmt, rc::Weak};
+
+use crate::ClosureId;
 
 use super::{
     ApplyResult, Common, Diff, Element, Node, PatchCommon, PatchElement, PatchNode, PatchSingle,
@@ -68,9 +70,9 @@ impl<Msg> From<PatchSpan<Msg>> for PatchNode<Msg> {
 
 impl<Msg> Diff for Span<Msg> {
     type Patch = PatchSpan<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         Some(PatchSpan {
-            common: self.common.diff(&other.common)?,
+            common: self.common.diff(&mut other.common)?,
         })
     }
     fn apply(&mut self, patch: Self::Patch) -> ApplyResult {
@@ -133,6 +135,15 @@ pub struct PatchSpan<Msg> {
     pub(crate) common: PatchCommon<Msg>,
 }
 
+impl<Msg> PatchSpan<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        self.common.pick_handler(handlers);
+    }
+}
+
 impl<Msg> Serialize for PatchSpan<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -180,17 +191,17 @@ mod test {
     #[test]
     fn same() {
         let span1 = Span::<()>::default();
-        let span2 = Span::default();
-        assert_eq!(span1.diff(&span2), None)
+        let mut span2 = Span::default();
+        assert_eq!(span1.diff(&mut span2), None)
     }
 
     #[test]
     fn different_id() {
         let mut span1 =
             Span::<()>::new(Common::new(None, vec![id("a".into())], Default::default()));
-        let span2 = Span::new(Common::new(None, vec![id("b".into())], Default::default()));
+        let mut span2 = Span::new(Common::new(None, vec![id("b".into())], Default::default()));
         assert_ne!(span1, span2);
-        let patch = span1.diff(&span2);
+        let patch = span1.diff(&mut span2);
         assert_eq!(
             patch,
             Some(PatchSpan {

@@ -1,4 +1,6 @@
-use std::fmt;
+use std::{any::Any, collections::HashMap, fmt, rc::Weak};
+
+use crate::ClosureId;
 
 use super::{
     ApplyResult, Common, Diff, Element, Node, PatchCommon, PatchElement, PatchNode, PatchSingle,
@@ -68,9 +70,9 @@ impl<Msg> From<PatchDiv<Msg>> for PatchNode<Msg> {
 
 impl<Msg> Diff for Div<Msg> {
     type Patch = PatchDiv<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         Some(PatchDiv {
-            common: self.common.diff(&other.common)?,
+            common: self.common.diff(&mut other.common)?,
         })
     }
     fn apply(&mut self, patch: Self::Patch) -> ApplyResult {
@@ -133,6 +135,15 @@ pub struct PatchDiv<Msg> {
     pub(crate) common: PatchCommon<Msg>,
 }
 
+impl<Msg> PatchDiv<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        self.common.pick_handler(handlers);
+    }
+}
+
 impl<Msg> Serialize for PatchDiv<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -180,16 +191,16 @@ mod test {
     #[test]
     fn same() {
         let div1 = Div::<()>::default();
-        let div2 = Div::default();
-        assert_eq!(div1.diff(&div2), None)
+        let mut div2 = Div::default();
+        assert_eq!(div1.diff(&mut div2), None)
     }
 
     #[test]
     fn different_id() {
         let mut div1 = Div::<()>::new(Common::new(None, vec![id("a".into())], Default::default()));
-        let div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default()));
+        let mut div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default()));
         assert_ne!(div1, div2);
-        let patch = div1.diff(&div2);
+        let patch = div1.diff(&mut div2);
         assert_eq!(
             patch,
             Some(PatchDiv {

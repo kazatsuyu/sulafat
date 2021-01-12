@@ -6,7 +6,7 @@ pub(crate) use steal_hasher::StealHasher;
 
 use std::any::TypeId;
 
-pub(crate) unsafe fn unsafe_cast<T, U>(t: &T) -> &U {
+unsafe fn unsafe_cast<T, U>(t: &T) -> &U {
     let ptr = t as *const T as *const U;
     unsafe { &*ptr }
 }
@@ -21,11 +21,4 @@ where
     } else {
         None
     }
-}
-
-pub(crate) unsafe fn reinterpret_cast<T, U>(t: T) -> U {
-    let ptr = &t as *const T as *const U;
-    let u = unsafe { ptr.read() };
-    std::mem::forget(t);
-    u
 }

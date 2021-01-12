@@ -1,8 +1,8 @@
 mod utils;
 
-use bincode::serialize;
+use bincode::{deserialize, serialize};
 use std::{cell::RefCell, thread_local};
-use sulafat_vdom::{Common, Diff, Div, List, Node};
+use sulafat_vdom::{on_click, Common, Div, EventHandler, Manager, Node, Program};
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -16,36 +16,59 @@ extern "C" {
     fn alert(s: &str);
 }
 
+struct MyProgram;
+
+impl Program for MyProgram {
+    type Model = usize;
+    type Msg = ();
+    fn init() -> Self::Model {
+        0
+    }
+    fn update(model: &Self::Model, _msg: &Self::Msg) -> Self::Model {
+        model + 1
+    }
+    fn view(model: &Self::Model) -> Node<Self::Msg> {
+        let children = (0..*model + 2).map(|index| {
+            let text = match index {
+                0 => "Update".into(),
+                1 => format!("{}", *model),
+                _ => format!("{}", index - 2),
+            };
+            let attr = if index == 0 {
+                vec![on_click(|_| ())]
+            } else {
+                vec![]
+            };
+            Div::new(Common::new(None, attr, vec![text.into()].into())).into()
+        });
+        children.collect()
+    }
+}
+
 thread_local! {
-    static NODE: RefCell<Node<()>> = RefCell::new(List::default().into());
-    static COUNT: RefCell<usize> = RefCell::new(0);
+    static MANAGER: RefCell<Manager<MyProgram>> = RefCell::new(Manager::new());
 }
 
 #[wasm_bindgen]
 pub fn internal_init() -> Vec<u8> {
     utils::set_panic_hook();
-    NODE.with(|node| serialize(&*node.borrow_mut())).unwrap()
+    MANAGER
+        .with(|manager| serialize(manager.borrow_mut().full_render()))
+        .unwrap()
 }
 
 #[wasm_bindgen]
-pub fn internal_update() -> Option<Vec<u8>> {
-    COUNT.with(|count| {
-        NODE.with(|prev| {
-            let count = &mut *count.borrow_mut();
-            let prev = &mut *prev.borrow_mut();
-            *count += 1;
-            let children = (0..=*count).map(|index| {
-                Div::new(Common::new(
-                    None,
-                    vec![],
-                    vec![format!("{}", if index == 0 { *count } else { index - 1 }).into()].into(),
-                ))
-                .into()
-            });
-            let node: Node<()> = children.collect();
-            let patch = prev.diff(&node);
-            *prev = node;
-            patch.map(|patch| serialize(&patch).unwrap())
-        })
+pub fn internal_render() -> Option<Vec<u8>> {
+    MANAGER.with(|manager| {
+        let mut manager = manager.borrow_mut();
+        manager.diff().map(|diff| serialize(&diff).unwrap())
+    })
+}
+
+#[wasm_bindgen]
+pub fn internal_on_event(data: Vec<u8>) {
+    MANAGER.with(|manager| {
+        let mut manager = manager.borrow_mut();
+        manager.on_event(&deserialize::<EventHandler>(&data).unwrap());
     })
 }

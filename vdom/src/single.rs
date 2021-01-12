@@ -1,4 +1,6 @@
-use std::fmt;
+use std::{any::Any, collections::HashMap, fmt, rc::Weak};
+
+use crate::ClosureId;
 
 use super::{ApplyResult, Diff, Element, Node, PatchElement, PatchNode};
 use fmt::Formatter;
@@ -23,6 +25,30 @@ impl<Msg> Single<Msg> {
             None
         }
     }
+
+    pub(crate) fn is_full_rendered(&self) -> bool {
+        match self {
+            Single::Text(_) => true,
+            Single::Element(element) => element.is_full_rendered(),
+        }
+    }
+
+    pub(crate) fn full_render(&mut self) {
+        match self {
+            Single::Text(_) => {}
+            Single::Element(element) => element.full_render(),
+        }
+    }
+
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        match self {
+            Single::Text(_) => {}
+            Single::Element(element) => element.pick_handler(handlers),
+        }
+    }
 }
 
 impl<Msg> From<Single<Msg>> for Node<Msg> {
@@ -42,7 +68,7 @@ impl<Msg> From<PatchSingle<Msg>> for PatchNode<Msg> {
 
 impl<Msg> Diff for Single<Msg> {
     type Patch = PatchSingle<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         match (self, other) {
             (Single::Text(s), Single::Text(o)) => {
                 if s == o {
@@ -52,7 +78,7 @@ impl<Msg> Diff for Single<Msg> {
                 }
             }
             (Single::Element(s), Single::Element(o)) => Some(s.diff(o)?.into()),
-            _ => Some(PatchSingle::Replace(other.clone())),
+            (_, other) => Some(PatchSingle::Replace(other.clone())),
         }
     }
     fn apply(&mut self, patch: Self::Patch) -> ApplyResult {
@@ -176,6 +202,22 @@ pub enum PatchSingle<Msg> {
     Element(PatchElement<Msg>),
 }
 
+impl<Msg> PatchSingle<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        match self {
+            PatchSingle::Replace(single) => {
+                single.pick_handler(handlers);
+            }
+            PatchSingle::Element(patch) => {
+                patch.pick_handler(handlers);
+            }
+        }
+    }
+}
+
 impl<Msg> Serialize for PatchSingle<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -241,23 +283,23 @@ mod test {
     #[test]
     fn same_element() {
         let div1: Single<()> = Div::default().into();
-        let div2 = Div::default().into();
-        assert_eq!(div1.diff(&div2), None);
+        let mut div2 = Div::default().into();
+        assert_eq!(div1.diff(&mut div2), None);
     }
 
     #[test]
     fn same_text() {
         let text1: Single<()> = "a".into();
-        let text2 = "a".into();
-        assert_eq!(text1.diff(&text2), None);
+        let mut text2 = "a".into();
+        assert_eq!(text1.diff(&mut text2), None);
     }
 
     #[test]
     fn different() {
         let mut text: Single<()> = "a".into();
-        let div = Div::default().into();
+        let mut div = Div::default().into();
         assert_ne!(text, div);
-        let patch = text.diff(&div);
+        let patch = text.diff(&mut div);
         assert_eq!(patch, Some(PatchSingle::Replace(div.clone())));
         text.apply(patch.unwrap()).unwrap();
         assert_eq!(text, div);

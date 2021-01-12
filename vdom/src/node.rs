@@ -1,6 +1,8 @@
-use std::fmt;
+use std::{any::Any, collections::HashMap, fmt, rc::Weak};
 
-use super::{ApplyResult, ComponentNode, Diff, List, PatchList, PatchSingle, Single};
+use crate::{list::PatchListOp, ClosureId};
+
+use super::{ApplyResult, CachedView, Diff, List, PatchList, PatchSingle, Single};
 use fmt::Formatter;
 use serde::{
     de::{EnumAccess, VariantAccess, Visitor},
@@ -13,35 +15,75 @@ use serde_derive::Deserialize;
 pub enum Node<Msg> {
     Single(Single<Msg>),
     List(List<Msg>),
-    Component(ComponentNode<Msg>),
+    CachedView(CachedView<Msg>),
 }
 
 impl<Msg> Node<Msg> {
     pub fn key(&self) -> Option<&String> {
-        if let Node::Single(single) = self {
-            single.key()
-        } else {
-            None
+        match self {
+            Node::Single(single) => single.key(),
+            Node::CachedView(view) => view.key(),
+            Node::List(_) => None,
         }
     }
 
-    pub(super) fn flat_len(&self) -> usize {
+    pub(super) fn flat_len(&self) -> Option<usize> {
         match self {
-            Node::Single(_) => 1,
+            Node::Single(_) => Some(1),
             Node::List(list) => list.flat_len(),
-            Node::Component(_) => todo!(),
+            Node::CachedView(view) => view.flat_len(),
+        }
+    }
+
+    pub(crate) fn is_full_rendered(&self) -> bool {
+        match self {
+            Node::Single(single) => single.is_full_rendered(),
+            Node::List(list) => list.is_full_rendered(),
+            Node::CachedView(view) => view.is_full_rendered(),
+        }
+    }
+
+    pub(crate) fn full_render(&mut self) {
+        if self.is_full_rendered() {
+            return;
+        }
+        match self {
+            Node::Single(single) => single.full_render(),
+            Node::List(list) => list.full_render(),
+            Node::CachedView(view) => {
+                view.full_render();
+            }
+        }
+    }
+
+    pub(crate) fn add_patch(&mut self, patches: &mut Vec<PatchListOp<Msg>>) {
+        match self {
+            Node::Single(single) => patches.push(PatchListOp::New(single.clone())),
+            Node::List(list) => list.add_patch(patches),
+            Node::CachedView(view) => view.add_patch(patches),
+        }
+    }
+
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        match self {
+            Node::Single(single) => single.pick_handler(handlers),
+            Node::List(list) => list.pick_handler(handlers),
+            Node::CachedView(view) => unsafe { view.rendered() }.unwrap().pick_handler(handlers),
         }
     }
 }
 
 impl<Msg> Diff for Node<Msg> {
     type Patch = PatchNode<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
-        use Node::*;
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         match (self, other) {
-            (Single(s), Single(o)) => Some(s.diff(o)?.into()),
-            (List(s), List(o)) => Some(s.diff(o)?.into()),
-            _ => Some(PatchNode::Replace(other.clone())),
+            (Node::Single(s), Node::Single(o)) => Some(s.diff(o)?.into()),
+            (Node::List(s), Node::List(o)) => Some(s.diff(o)?.into()),
+            (Node::CachedView(s), Node::CachedView(o)) => s.diff(o),
+            (_, other) => Some(PatchNode::Replace(other.clone())),
         }
     }
 
@@ -84,7 +126,7 @@ impl<Msg> Serialize for Node<Msg> {
                 tv.serialize_field(list)?;
                 tv.end()
             }
-            Node::Component(_) => todo!(),
+            Node::CachedView(view) => unsafe { view.rendered() }.unwrap().serialize(serializer),
         }
     }
 }
@@ -126,7 +168,7 @@ impl<Msg> Clone for Node<Msg> {
         match self {
             Node::Single(single) => Node::Single(single.clone()),
             Node::List(list) => Node::List(list.clone()),
-            Node::Component(component) => Node::Component(component.clone()),
+            Node::CachedView(component) => Node::CachedView(component.clone()),
         }
     }
 }
@@ -136,7 +178,7 @@ impl<Msg> PartialEq for Node<Msg> {
         match (self, other) {
             (Node::Single(this), Node::Single(other)) => this == other,
             (Node::List(this), Node::List(other)) => this == other,
-            (Node::Component(this), Node::Component(other)) => this == other,
+            (Node::CachedView(this), Node::CachedView(other)) => this == other,
             _ => false,
         }
     }
@@ -149,6 +191,25 @@ pub enum PatchNode<Msg> {
     Replace(Node<Msg>),
     Single(PatchSingle<Msg>),
     List(PatchList<Msg>),
+}
+
+impl<Msg> PatchNode<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        match self {
+            PatchNode::Replace(node) => {
+                node.pick_handler(handlers);
+            }
+            PatchNode::Single(patch) => {
+                patch.pick_handler(handlers);
+            }
+            PatchNode::List(patch) => {
+                patch.pick_handler(handlers);
+            }
+        }
+    }
 }
 
 impl<Msg> Serialize for PatchNode<Msg> {
@@ -185,23 +246,23 @@ mod test {
     #[test]
     fn same_single() {
         let text1: Node<()> = "a".into();
-        let text2 = "a".into();
-        assert_eq!(text1.diff(&text2), None);
+        let mut text2 = "a".into();
+        assert_eq!(text1.diff(&mut text2), None);
     }
 
     #[test]
     fn same_list() {
         let list1: Node<()> = vec!["a".into()].into();
-        let list2 = vec!["a".into()].into();
-        assert_eq!(list1.diff(&list2), None);
+        let mut list2 = vec!["a".into()].into();
+        assert_eq!(list1.diff(&mut list2), None);
     }
 
     #[test]
     fn different() {
         let mut list: Node<()> = vec!["a".into()].into();
-        let text = "a".into();
+        let mut text = "a".into();
         assert_ne!(list, text);
-        let patch = list.diff(&text);
+        let patch = list.diff(&mut text);
         assert_eq!(patch, Some(PatchNode::Replace(text.clone())));
         list.apply(patch.unwrap()).unwrap();
         assert_eq!(list, text);

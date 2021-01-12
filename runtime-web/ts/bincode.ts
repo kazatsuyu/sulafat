@@ -177,7 +177,7 @@ export class Decoder {
   }
 
   public read(n: number): Uint8Array {
-    if (n < this.#buffer.byteLength) {
+    if (n >= this.#buffer.byteLength) {
       n = this.#buffer.byteLength;
     }
     const array = Uint8Array.from(new Uint8Array(this.#buffer, 0, n));

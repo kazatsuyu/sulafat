@@ -1,5 +1,5 @@
-import { init, update } from "../ts/index.js";
+import { init, render } from "../ts/index.js";
 
 init();
 
-document.getElementById("update")?.addEventListener("click", update);
+document.getElementById("render")?.addEventListener("click", render);

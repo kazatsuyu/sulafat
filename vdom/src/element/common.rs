@@ -1,3 +1,5 @@
+use crate::ClosureId;
+
 use super::{ApplyResult, Attribute, Diff, List, PatchAttribute, PatchList};
 use serde::{
     de::{MapAccess, Visitor},
@@ -5,8 +7,11 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::{
+    any::Any,
     cmp::Ordering,
+    collections::HashMap,
     fmt::{self, Formatter},
+    rc::Weak,
 };
 
 #[derive(Default, Debug)]
@@ -30,7 +35,7 @@ impl<Msg> Common<Msg> {
 
 impl<Msg> Diff for Common<Msg> {
     type Patch = PatchCommon<Msg>;
-    fn diff(&self, other: &Self) -> Option<Self::Patch> {
+    fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         if self != other {
             let mut i1 = 0;
             let mut i2 = 0;
@@ -44,7 +49,7 @@ impl<Msg> Diff for Common<Msg> {
                 match this.attribute_type().cmp(&other.attribute_type()) {
                     Ordering::Less => {
                         i1 += 1;
-                        attr.push(PatchAttribute::Remove(other.attribute_type()))
+                        attr.push(PatchAttribute::Remove(this.attribute_type()))
                     }
                     Ordering::Greater => {
                         i2 += 1;
@@ -52,13 +57,22 @@ impl<Msg> Diff for Common<Msg> {
                     }
                     Ordering::Equal => {
                         i1 += 1;
-                        i2 += 1
+                        i2 += 1;
+                        if this != other {
+                            attr.push(PatchAttribute::Insert(other.clone()))
+                        }
                     }
                 }
             }
+            while i1 < self.attr.len() {
+                attr.push(PatchAttribute::Remove(self.attr[i1].attribute_type()))
+            }
+            while i2 < other.attr.len() {
+                attr.push(PatchAttribute::Insert(other.attr[i2].clone()))
+            }
             Some(PatchCommon {
                 attr,
-                children: self.children.diff(&other.children),
+                children: self.children.diff(&mut other.children),
             })
         } else {
             None
@@ -163,6 +177,20 @@ pub struct PatchCommon<Msg> {
     pub(crate) children: Option<PatchList<Msg>>,
 }
 
+impl<Msg> PatchCommon<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
+        for attr in &self.attr {
+            match attr {
+                PatchAttribute::Remove(_) => {}
+                PatchAttribute::Insert(attr) => attr.pick_handler(handlers),
+            }
+        }
+    }
+}
+
 impl<Msg> Serialize for PatchCommon<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -212,15 +240,15 @@ mod test {
     #[test]
     fn same() {
         let common1 = Common::<()>::default();
-        let common2 = Common::default();
-        assert_eq!(common1.diff(&common2), None)
+        let mut common2 = Common::default();
+        assert_eq!(common1.diff(&mut common2), None)
     }
 
     #[test]
     fn different_id() {
         let mut common1 = Common::<()>::new(None, vec![id("a".into())], Default::default());
-        let common2 = Common::new(None, vec![id("b".into())], Default::default());
-        let patch = common1.diff(&common2);
+        let mut common2 = Common::new(None, vec![id("b".into())], Default::default());
+        let patch = common1.diff(&mut common2);
         assert_eq!(
             patch,
             Some(PatchCommon {

@@ -72,3 +72,26 @@ fn with_types_impl(args: TokenStream, items: TokenStream) -> syn::Result<TokenSt
 pub fn with_types(args: TokenStream, items: TokenStream) -> TokenStream {
     with_types_impl(args, items).unwrap_or_else(|e| e.to_compile_error())
 }
+
+#[cfg(feature = "wasm")]
+fn dbg_impl(items: TokenStream) -> syn::Result<TokenStream> {
+    Ok(quote! {
+        match #items {
+            tmp => {
+                ::web_sys::console::log_1(&format!("{:?}", #items).into());
+                tmp
+            }
+        }
+    })
+}
+
+#[cfg(not(feature = "wasm"))]
+fn dbg_impl(items: TokenStream) -> syn::Result<TokenStream> {
+    Ok(quote! {
+        dbg!(#items)
+    })
+}
+
+pub fn dbg(items: TokenStream) -> TokenStream {
+    dbg_impl(items).unwrap_or_else(|e| e.to_compile_error())
+}

@@ -1,4 +1,4 @@
-use crate::util::{reinterpret_cast, safe_cast, RawState, RawStateOf, StealHasher};
+use crate::ClosureId;
 use serde::{
     de::{EnumAccess, VariantAccess, Visitor},
     ser::SerializeTupleVariant,
@@ -6,40 +6,18 @@ use serde::{
 };
 use serde_derive::{Deserialize, Serialize};
 use std::{
+    any::Any,
+    collections::HashMap,
     fmt::Debug,
     fmt::{self, Formatter},
     hash::Hash,
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 use sulafat_macros::with_types;
 
 pub struct Handler<Args, Msg> {
-    id: Id,
-    handle: Rc<dyn Handle<Args, Msg>>,
-}
-
-const SIZE_OF_TYPEID: usize = std::mem::size_of::<std::any::TypeId>();
-
-type TypeIdRawType = <RawStateOf<SIZE_OF_TYPEID> as RawState>::Type;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
-pub struct TypeId {
-    t: TypeIdRawType,
-}
-
-impl TypeId {
-    fn of<T: 'static>() -> Self {
-        let type_id = std::any::TypeId::of::<T>();
-        let mut hasher = StealHasher::<SIZE_OF_TYPEID>::default();
-        type_id.hash(&mut hasher);
-        Self { t: hasher.get() }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub enum Id {
-    TypeId(TypeId),
-    FnPtr(usize),
+    id: ClosureId,
+    handle: Box<dyn Handle<Args, Msg>>,
 }
 
 impl<Args, Msg> Handler<Args, Msg> {
@@ -52,15 +30,30 @@ impl<Args, Msg> Handler<Args, Msg> {
         Args: 'static,
         Msg: 'static,
     {
-        let id = TypeId::of::<F>();
         Self {
-            id: if let Some(fn_ptr) = safe_cast::<F, fn(Args) -> Msg>(&f) {
-                Id::FnPtr(*fn_ptr as usize)
-            } else {
-                Id::TypeId(id)
-            },
-            handle: Rc::new(f),
+            id: ClosureId::new::<F, Args, Msg>(&f),
+            handle: Box::new(f),
         }
+    }
+
+    fn wrap<Msg2>(self) -> Handler<Args, Msg2>
+    where
+        Msg: 'static,
+        Args: 'static,
+        Msg2: 'static + From<Msg>,
+    {
+        Handler {
+            id: self.id,
+            handle: Box::new(move |args| self.handle.invoke(args).into()),
+        }
+    }
+
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any>
+    where
+        Msg: 'static,
+        Args: 'static,
+    {
+        self as Rc<dyn Any>
     }
 }
 
@@ -94,10 +87,10 @@ impl<'de, Args, Msg> Deserialize<'de> for Handler<Args, Msg> {
             where
                 D: Deserializer<'de>,
             {
-                let id = Id::deserialize(deserializer)?;
+                let id = ClosureId::deserialize(deserializer)?;
                 Ok(Handler {
                     id,
-                    handle: Rc::new(|_| unreachable!()),
+                    handle: Box::new(|_| unreachable!()),
                 })
             }
         }
@@ -105,46 +98,13 @@ impl<'de, Args, Msg> Deserialize<'de> for Handler<Args, Msg> {
     }
 }
 
-pub trait Convert<T> {
-    fn convert(self) -> T;
-}
-
-impl<Args, Msg1, Msg2> Convert<Handler<Args, Msg2>> for Handler<Args, Msg1>
-where
-    Msg1: 'static + Into<Msg2>,
-    Msg2: 'static,
-    Args: 'static,
-{
-    fn convert(self) -> Handler<Args, Msg2> {
-        Handler {
-            id: self.id,
-            handle: self.handle.convert(),
-        }
-    }
-}
-
 pub trait Handle<Args, Msg> {
     fn invoke(&self, args: Args) -> Msg;
 }
 
-impl<Args, Msg1, Msg2> Convert<Rc<dyn Handle<Args, Msg2>>> for Rc<dyn Handle<Args, Msg1>>
-where
-    Msg1: 'static + Into<Msg2>,
-    Msg2: 'static,
-    Args: 'static,
-{
-    fn convert(self) -> Rc<dyn Handle<Args, Msg2>> {
-        if TypeId::of::<Msg1>() == TypeId::of::<Msg2>() {
-            unsafe { reinterpret_cast(self) }
-        } else {
-            Rc::new(move |args| self.invoke(args).into())
-        }
-    }
-}
-
 impl<Msg, F, Args> Handle<Args, Msg> for F
 where
-    F: Fn(Args) -> Msg,
+    F: 'static + Fn(Args) -> Msg,
 {
     fn invoke(&self, args: Args) -> Msg {
         self(args)
@@ -155,20 +115,23 @@ where
 #[derive(Debug)]
 pub enum Attribute<Msg> {
     Id(String),
-    OnClick(Handler<(), Msg>),
-    OnPointerMove(Handler<(f64, f64), Msg>),
+    OnClick(Rc<Handler<(), Msg>>),
+    OnPointerMove(Rc<Handler<(f64, f64), Msg>>),
 }
 
-impl<Msg1, Msg2> Convert<Attribute<Msg2>> for Attribute<Msg1>
-where
-    Msg1: 'static + Into<Msg2>,
-    Msg2: 'static,
-{
-    fn convert(self) -> Attribute<Msg2> {
+impl<Msg> Attribute<Msg> {
+    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
+    where
+        Msg: 'static,
+    {
         match self {
-            Attribute::Id(id) => Attribute::Id(id),
-            Attribute::OnClick(handler) => Attribute::OnClick(handler.convert()),
-            Attribute::OnPointerMove(handler) => Attribute::OnPointerMove(handler.convert()),
+            Attribute::Id(_) => {}
+            Attribute::OnClick(handler) => {
+                handlers.insert(handler.id, Rc::downgrade(&handler.clone().as_any()));
+            }
+            Attribute::OnPointerMove(handler) => {
+                handlers.insert(handler.id, Rc::downgrade(&handler.clone().as_any()));
+            }
         }
     }
 }
@@ -182,7 +145,7 @@ where
     F: 'static + Fn(()) -> Msg,
     Msg: 'static,
 {
-    Attribute::OnClick(Handler::new(f))
+    Attribute::OnClick(Rc::new(Handler::new(f)))
 }
 
 pub fn on_pointer_move<Msg, F>(f: F) -> Attribute<Msg>
@@ -190,7 +153,7 @@ where
     F: 'static + Fn((f64, f64)) -> Msg,
     Msg: 'static,
 {
-    Attribute::OnPointerMove(Handler::new(f))
+    Attribute::OnPointerMove(Rc::new(Handler::new(f)))
 }
 
 impl<Args, Msg> PartialEq for Handler<Args, Msg> {
@@ -200,15 +163,6 @@ impl<Args, Msg> PartialEq for Handler<Args, Msg> {
 }
 
 impl<Args, Msg> Eq for Handler<Args, Msg> {}
-
-impl<Args, Msg> Clone for Handler<Args, Msg> {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            handle: self.handle.clone(),
-        }
-    }
-}
 
 impl<Msg> PartialEq for Attribute<Msg> {
     fn eq(&self, other: &Self) -> bool {
@@ -247,13 +201,13 @@ impl<Msg> Serialize for Attribute<Msg> {
             Attribute::OnClick(handler) => {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 1, "OnClick", 1)?;
-                variant.serialize_field(handler)?;
+                variant.serialize_field(&handler.id)?;
                 variant.end()
             }
             Attribute::OnPointerMove(handler) => {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 2, "OnPointerMove", 1)?;
-                variant.serialize_field(handler)?;
+                variant.serialize_field(&handler.id)?;
                 variant.end()
             }
         }
@@ -286,11 +240,11 @@ impl<'de, Msg> Deserialize<'de> for Attribute<Msg> {
                 Ok(match v {
                     Tag::Id => Attribute::Id(variant.newtype_variant::<String>()?),
                     Tag::OnClick => {
-                        Attribute::OnClick(variant.newtype_variant::<Handler<(), Msg>>()?)
+                        Attribute::OnClick(Rc::new(variant.newtype_variant::<Handler<(), Msg>>()?))
                     }
-                    Tag::OnPointerMove => Attribute::OnPointerMove(
+                    Tag::OnPointerMove => Attribute::OnPointerMove(Rc::new(
                         variant.newtype_variant::<Handler<(f64, f64), Msg>>()?,
-                    ),
+                    )),
                 })
             }
         }
