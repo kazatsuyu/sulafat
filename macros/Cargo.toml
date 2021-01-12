@@ -11,7 +11,3 @@ proc-macro = true
 
 [dependencies.sulafat-macros-impl]
 path = "../macros-impl"
-
-[features]
-default = []
-wasm = ["sulafat-macros-impl/wasm"]

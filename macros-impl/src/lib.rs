@@ -73,22 +73,19 @@ pub fn with_types(args: TokenStream, items: TokenStream) -> TokenStream {
     with_types_impl(args, items).unwrap_or_else(|e| e.to_compile_error())
 }
 
-#[cfg(feature = "wasm")]
 fn dbg_impl(items: TokenStream) -> syn::Result<TokenStream> {
     Ok(quote! {
         match #items {
+            #[cfg(target_arch = "wasm32")]
             tmp => {
-                ::web_sys::console::log_1(&format!("{:?}", #items).into());
+                crate::util::debug(&format!("{:?}", tmp).into());
                 tmp
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            tmp => {
+                ::std::dbg!(tmp)
+            }
         }
-    })
-}
-
-#[cfg(not(feature = "wasm"))]
-fn dbg_impl(items: TokenStream) -> syn::Result<TokenStream> {
-    Ok(quote! {
-        dbg!(#items)
     })
 }
 

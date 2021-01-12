@@ -22,3 +22,15 @@ where
         None
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+#[allow(dead_code)]
+pub(crate) fn debug(value: &wasm_bindgen::JsValue) {
+    // NOTE: If not enclosed in an unsafe block, the rust-analyzer gives an unsafe error,
+    // but if enclosed in an unsafe block, the warning unused_unsafe appears.
+    // To avoid this, enclose it in an unsafe block and add #[allow(unused_unsafe)].
+    #[allow(unused_unsafe)]
+    unsafe {
+        web_sys::console::debug_1(value)
+    }
+}

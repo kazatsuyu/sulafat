@@ -111,7 +111,7 @@ where
     }
 }
 
-#[with_types(AttributeType)]
+#[with_types]
 #[derive(Debug)]
 pub enum Attribute<Msg> {
     Id(String),
