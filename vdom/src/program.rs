@@ -64,11 +64,11 @@ impl<P: Program> Manager<P> {
     pub fn diff(&mut self) -> Option<PatchNode<P::Msg>> {
         let mut view = CachedView::new(None, Memo::new(P::view, self.model.clone()));
         let diff = self.view.diff(&mut view);
-        self.view = view;
-        self.handlers.retain(|_, v| v.strong_count() != 0);
-        unsafe { self.view.rendered() }
+        self.handlers.clear();
+        unsafe { view.rendered() }
             .unwrap()
             .pick_handler(&mut self.handlers);
+        self.view = view;
         diff
     }
 }
