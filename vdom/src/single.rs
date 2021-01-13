@@ -202,22 +202,6 @@ pub enum PatchSingle<Msg> {
     Element(PatchElement<Msg>),
 }
 
-impl<Msg> PatchSingle<Msg> {
-    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
-    where
-        Msg: 'static,
-    {
-        match self {
-            PatchSingle::Replace(single) => {
-                single.pick_handler(handlers);
-            }
-            PatchSingle::Element(patch) => {
-                patch.pick_handler(handlers);
-            }
-        }
-    }
-}
-
 impl<Msg> Serialize for PatchSingle<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

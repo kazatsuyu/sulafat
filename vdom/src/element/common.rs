@@ -1,5 +1,3 @@
-use crate::ClosureId;
-
 use super::{ApplyResult, Attribute, Diff, List, PatchAttribute, PatchList};
 use serde::{
     de::{MapAccess, Visitor},
@@ -7,11 +5,8 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::{
-    any::Any,
     cmp::Ordering,
-    collections::HashMap,
     fmt::{self, Formatter},
-    rc::Weak,
 };
 
 #[derive(Default, Debug)]
@@ -175,20 +170,6 @@ impl<'de, Msg> Deserialize<'de> for Common<Msg> {
 pub struct PatchCommon<Msg> {
     pub(crate) attr: Vec<PatchAttribute<Msg>>,
     pub(crate) children: Option<PatchList<Msg>>,
-}
-
-impl<Msg> PatchCommon<Msg> {
-    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
-    where
-        Msg: 'static,
-    {
-        for attr in &self.attr {
-            match attr {
-                PatchAttribute::Remove(_) => {}
-                PatchAttribute::Insert(attr) => attr.pick_handler(handlers),
-            }
-        }
-    }
 }
 
 impl<Msg> Serialize for PatchCommon<Msg> {

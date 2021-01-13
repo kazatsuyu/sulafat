@@ -193,25 +193,6 @@ pub enum PatchNode<Msg> {
     List(PatchList<Msg>),
 }
 
-impl<Msg> PatchNode<Msg> {
-    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
-    where
-        Msg: 'static,
-    {
-        match self {
-            PatchNode::Replace(node) => {
-                node.pick_handler(handlers);
-            }
-            PatchNode::Single(patch) => {
-                patch.pick_handler(handlers);
-            }
-            PatchNode::List(patch) => {
-                patch.pick_handler(handlers);
-            }
-        }
-    }
-}
-
 impl<Msg> Serialize for PatchNode<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

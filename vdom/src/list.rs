@@ -471,33 +471,6 @@ impl<Msg> List<Msg> {
     }
 }
 
-impl<Msg> PatchList<Msg> {
-    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
-    where
-        Msg: 'static,
-    {
-        match self {
-            PatchList::All(all) => {
-                for op in all {
-                    match op {
-                        PatchListOp::Nop | PatchListOp::From(_) => {}
-                        PatchListOp::Modify(patch) | PatchListOp::FromModify(_, patch) => {
-                            patch.pick_handler(handlers)
-                        }
-                        PatchListOp::New(single) => single.pick_handler(handlers),
-                    }
-                }
-            }
-            PatchList::Entries(_, entries) => {
-                for (_, patch) in entries {
-                    patch.pick_handler(handlers)
-                }
-            }
-            PatchList::Truncate(_) => {}
-        }
-    }
-}
-
 impl<Msg> Serialize for List<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

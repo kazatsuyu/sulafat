@@ -237,19 +237,6 @@ pub enum PatchElement<Msg> {
     Span(PatchSpan<Msg>),
 }
 
-impl<Msg> PatchElement<Msg> {
-    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
-    where
-        Msg: 'static,
-    {
-        match self {
-            PatchElement::Replace(element) => element.pick_handler(handlers),
-            PatchElement::Div(div) => div.pick_handler(handlers),
-            PatchElement::Span(span) => span.pick_handler(handlers),
-        }
-    }
-}
-
 impl<Msg> Serialize for PatchElement<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

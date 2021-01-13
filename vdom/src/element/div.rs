@@ -1,6 +1,4 @@
-use std::{any::Any, collections::HashMap, fmt, rc::Weak};
-
-use crate::ClosureId;
+use std::fmt;
 
 use super::{
     ApplyResult, Common, Diff, Element, Node, PatchCommon, PatchElement, PatchNode, PatchSingle,
@@ -133,15 +131,6 @@ impl<'de, Msg> Deserialize<'de> for Div<Msg> {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PatchDiv<Msg> {
     pub(crate) common: PatchCommon<Msg>,
-}
-
-impl<Msg> PatchDiv<Msg> {
-    pub(crate) fn pick_handler(&self, handlers: &mut HashMap<ClosureId, Weak<dyn Any>>)
-    where
-        Msg: 'static,
-    {
-        self.common.pick_handler(handlers);
-    }
 }
 
 impl<Msg> Serialize for PatchDiv<Msg> {
