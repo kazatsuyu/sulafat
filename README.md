@@ -17,6 +17,8 @@
 
 前提
 
+* Rust(nightly)
+    * `feature = "nightly-fetures"`を使わなければnightlyじゃなくても動くようにはしているつもりだけど確認していない
 * Node.js
 * Yarn（もしくはNpm）
 * [simple-http-server](https://crates.io/crates/simple-http-server)
