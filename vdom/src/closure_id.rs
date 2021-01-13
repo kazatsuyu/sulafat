@@ -39,4 +39,19 @@ impl ClosureId {
             ClosureId::TypeId(id)
         }
     }
+    pub(crate) fn with_data<F: 'static + Fn(Data, Args) -> Output, Data, Args, Output>(
+        f: &F,
+    ) -> Self
+    where
+        Data: 'static,
+        Args: 'static,
+        Output: 'static,
+    {
+        let id = TypeId::of::<F>();
+        if let Some(&fn_ptr) = safe_cast::<F, fn(Data, Args) -> Output>(&f) {
+            ClosureId::FnPtr(fn_ptr as usize)
+        } else {
+            ClosureId::TypeId(id)
+        }
+    }
 }

@@ -11,6 +11,7 @@ use std::{
     fmt::Debug,
     fmt::{self, Formatter},
     hash::Hash,
+    marker::PhantomData,
     rc::{Rc, Weak},
 };
 use sulafat_macros::with_types;
@@ -33,6 +34,22 @@ impl<Args, Msg> Handler<Args, Msg> {
         Self {
             id: ClosureId::new::<F, Args, Msg>(&f),
             handle: Box::new(f),
+        }
+    }
+
+    pub fn with_data<F: 'static + Fn(&Data, Args) -> Msg, Data>(f: F, data: Data) -> Self
+    where
+        Args: 'static,
+        Msg: 'static,
+        Data: 'static + PartialEq,
+    {
+        Self {
+            id: ClosureId::with_data::<F, &Data, Args, Msg>(&f),
+            handle: Box::new(CachedHandle {
+                data,
+                f,
+                _p: Default::default(),
+            }),
         }
     }
 
@@ -77,7 +94,7 @@ impl<'de, Args, Msg> Deserialize<'de> for Handler<Args, Msg> {
     where
         D: Deserializer<'de>,
     {
-        struct HandlerVisitor<Args, Msg>(std::marker::PhantomData<(Args, Msg)>);
+        struct HandlerVisitor<Args, Msg>(PhantomData<(Args, Msg)>);
         impl<'de, Args, Msg> Visitor<'de> for HandlerVisitor<Args, Msg> {
             type Value = Handler<Args, Msg>;
             fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
@@ -100,6 +117,8 @@ impl<'de, Args, Msg> Deserialize<'de> for Handler<Args, Msg> {
 
 pub trait Handle<Args, Msg> {
     fn invoke(&self, args: Args) -> Msg;
+    fn is_same(&self, other: &dyn Handle<Args, Msg>) -> bool;
+    fn as_any(&self) -> &dyn Any;
 }
 
 impl<Msg, F, Args> Handle<Args, Msg> for F
@@ -108,6 +127,43 @@ where
 {
     fn invoke(&self, args: Args) -> Msg {
         self(args)
+    }
+
+    fn is_same(&self, other: &dyn Handle<Args, Msg>) -> bool {
+        other.as_any().downcast_ref::<Self>().is_some()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+struct CachedHandle<F, Data, Args, Msg> {
+    data: Data,
+    f: F,
+    _p: PhantomData<(Args, Msg)>,
+}
+
+impl<F, Data, Args, Msg> Handle<Args, Msg> for CachedHandle<F, Data, Args, Msg>
+where
+    F: Fn(&Data, Args) -> Msg,
+    Self: 'static,
+    Data: PartialEq,
+{
+    fn invoke(&self, args: Args) -> Msg {
+        (self.f)(&self.data, args)
+    }
+
+    fn is_same(&self, other: &dyn Handle<Args, Msg>) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<Self>() {
+            self.data == other.data
+        } else {
+            false
+        }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -158,7 +214,7 @@ where
 
 impl<Args, Msg> PartialEq for Handler<Args, Msg> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.id == other.id && self.handle.is_same(&*other.handle)
     }
 }
 
