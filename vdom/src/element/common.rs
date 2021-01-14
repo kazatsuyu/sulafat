@@ -38,9 +38,6 @@ impl<Msg> Diff for Common<Msg> {
             while i1 < self.attr.len() && i2 < other.attr.len() {
                 let this = &self.attr[i1];
                 let other = &other.attr[i2];
-                if this != other {
-                    attr.push(PatchAttribute::Insert(other.clone()));
-                }
                 match this.attribute_type().cmp(&other.attribute_type()) {
                     Ordering::Less => {
                         i1 += 1;
@@ -60,10 +57,12 @@ impl<Msg> Diff for Common<Msg> {
                 }
             }
             while i1 < self.attr.len() {
-                attr.push(PatchAttribute::Remove(self.attr[i1].attribute_type()))
+                attr.push(PatchAttribute::Remove(self.attr[i1].attribute_type()));
+                i1 += 1;
             }
             while i2 < other.attr.len() {
-                attr.push(PatchAttribute::Insert(other.attr[i2].clone()))
+                attr.push(PatchAttribute::Insert(other.attr[i2].clone()));
+                i2 += 1;
             }
             Some(PatchCommon {
                 attr,
