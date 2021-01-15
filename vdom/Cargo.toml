@@ -15,8 +15,8 @@ default = []
 nightly-features = []
 
 [dependencies]
-serde_derive = "1.0.118"
-serde = "1.0.118"
+serde_derive = "1.0.119"
+serde = "1.0.119"
 num = "0.3.1"
 
 [dependencies.sulafat-macros]
