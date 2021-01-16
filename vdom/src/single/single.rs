@@ -1,17 +1,15 @@
 use std::{any::Any, collections::HashMap, fmt, rc::Weak};
 
-use crate::ClosureId;
-
-use super::{ApplyResult, Diff, Element, Node, PatchElement, PatchNode};
+use crate::{ApplyResult, ClosureId, Diff, Element, Node, PatchNode, PatchSingle};
 use fmt::Formatter;
 use serde::{
     de::{EnumAccess, VariantAccess, Visitor},
-    ser::SerializeTupleVariant,
-    Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Deserializer,
 };
 use serde_derive::Deserialize;
+use sulafat_macros::Serialize;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum Single<Msg> {
     Text(String),
     Element(Element<Msg>),
@@ -120,26 +118,6 @@ impl<Msg> From<&str> for Node<Msg> {
     }
 }
 
-impl<Msg> Serialize for Single<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Single::Text(s) => {
-                let mut variant = serializer.serialize_tuple_variant("Single", 0, "Text", 1)?;
-                variant.serialize_field(s)?;
-                variant.end()
-            }
-            Single::Element(e) => {
-                let mut variant = serializer.serialize_tuple_variant("Single", 1, "Element", 1)?;
-                variant.serialize_field(e)?;
-                variant.end()
-            }
-        }
-    }
-}
-
 impl<'de, Msg> Deserialize<'de> for Single<Msg> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -196,73 +174,9 @@ impl<Msg> PartialEq for Single<Msg> {
 
 impl<Msg> Eq for Single<Msg> {}
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum PatchSingle<Msg> {
-    Replace(Single<Msg>),
-    Element(PatchElement<Msg>),
-}
-
-impl<Msg> Serialize for PatchSingle<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            PatchSingle::Replace(single) => {
-                let mut variant =
-                    serializer.serialize_tuple_variant("PatchSingle", 0, "Replace", 1)?;
-                variant.serialize_field(single)?;
-                variant.end()
-            }
-            PatchSingle::Element(patch) => {
-                let mut variant =
-                    serializer.serialize_tuple_variant("PatchSingle", 1, "Element", 1)?;
-                variant.serialize_field(patch)?;
-                variant.end()
-            }
-        }
-    }
-}
-
-impl<'de, Msg> Deserialize<'de> for PatchSingle<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PatchSingleVisitor<Msg>(std::marker::PhantomData<Msg>);
-
-        impl<'de, Msg> Visitor<'de> for PatchSingleVisitor<Msg> {
-            type Value = PatchSingle<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "variant of Replace or Element")
-            }
-            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                #[derive(Deserialize)]
-                enum VariantTag {
-                    Replace,
-                    Element,
-                }
-                let (v, variant) = data.variant::<VariantTag>()?;
-                Ok(match v {
-                    VariantTag::Replace => PatchSingle::Replace(variant.newtype_variant()?),
-                    VariantTag::Element => PatchSingle::Element(variant.newtype_variant()?),
-                })
-            }
-        }
-        deserializer.deserialize_enum(
-            "PatchSingle",
-            &["Replace", "Element"],
-            PatchSingleVisitor(Default::default()),
-        )
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::{super::Div, Diff, PatchSingle, Single};
+    use crate::{Diff, Div, PatchSingle, Single};
 
     #[test]
     fn same_element() {

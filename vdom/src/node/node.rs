@@ -1,8 +1,6 @@
 use std::{any::Any, collections::HashMap, fmt, rc::Weak};
 
-use crate::{list::PatchListOp, ClosureId};
-
-use super::{ApplyResult, CachedView, Diff, List, PatchList, PatchSingle, Single};
+use crate::{list::PatchListOp, ApplyResult, CachedView, ClosureId, Diff, List, PatchNode, Single};
 use fmt::Formatter;
 use serde::{
     de::{EnumAccess, VariantAccess, Visitor},
@@ -27,7 +25,7 @@ impl<Msg> Node<Msg> {
         }
     }
 
-    pub(super) fn flat_len(&self) -> Option<usize> {
+    pub(crate) fn flat_len(&self) -> Option<usize> {
         match self {
             Node::Single(_) => Some(1),
             Node::List(list) => list.flat_len(),
@@ -185,40 +183,6 @@ impl<Msg> PartialEq for Node<Msg> {
 }
 
 impl<Msg> Eq for Node<Msg> {}
-
-#[derive(Debug, Clone, Eq, PartialEq, Deserialize)]
-pub enum PatchNode<Msg> {
-    Replace(Node<Msg>),
-    Single(PatchSingle<Msg>),
-    List(PatchList<Msg>),
-}
-
-impl<Msg> Serialize for PatchNode<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            PatchNode::Replace(node) => {
-                let mut variant =
-                    serializer.serialize_tuple_variant("PatchNode", 0, "Replace", 1)?;
-                variant.serialize_field(node)?;
-                variant.end()
-            }
-            PatchNode::Single(patch) => {
-                let mut variant =
-                    serializer.serialize_tuple_variant("PatchNode", 1, "Single", 1)?;
-                variant.serialize_field(patch)?;
-                variant.end()
-            }
-            PatchNode::List(patch) => {
-                let mut variant = serializer.serialize_tuple_variant("PatchNode", 2, "List", 1)?;
-                variant.serialize_field(patch)?;
-                variant.end()
-            }
-        }
-    }
-}
 
 #[cfg(test)]
 mod test {

@@ -8,8 +8,9 @@ use std::{
     cmp::Ordering,
     fmt::{self, Formatter},
 };
+use sulafat_macros::Serialize;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize)]
 pub struct Common<Msg> {
     pub(crate) key: Option<String>,
     pub(crate) attr: Vec<Attribute<Msg>>,
@@ -124,18 +125,6 @@ impl<Msg> PartialEq for Common<Msg> {
 }
 
 impl<Msg> Eq for Common<Msg> {}
-
-impl<Msg> Serialize for Common<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut r#struct = serializer.serialize_struct("Common", 2)?;
-        r#struct.serialize_field("attr", &self.attr)?;
-        r#struct.serialize_field("children", &self.children)?;
-        r#struct.end()
-    }
-}
 
 impl<'de, Msg> Deserialize<'de> for Common<Msg> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

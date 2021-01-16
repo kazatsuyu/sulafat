@@ -10,8 +10,9 @@ use serde::{
     ser::SerializeStruct,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use sulafat_macros::Serialize;
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize)]
 pub struct Span<Msg> {
     pub(crate) common: Common<Msg>,
 }
@@ -93,17 +94,6 @@ impl<Msg> PartialEq for Span<Msg> {
 }
 
 impl<Msg> Eq for Span<Msg> {}
-
-impl<Msg> Serialize for Span<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut r#struct = serializer.serialize_struct("Span", 1)?;
-        r#struct.serialize_field("common", &self.common)?;
-        r#struct.end()
-    }
-}
 
 impl<'de, Msg> Deserialize<'de> for Span<Msg> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>

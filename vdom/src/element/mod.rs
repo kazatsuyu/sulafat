@@ -9,6 +9,7 @@ pub use attribute::{
 pub use common::{Common, PatchCommon};
 pub use div::{Div, PatchDiv};
 pub use span::{PatchSpan, Span};
+use sulafat_macros::Serialize;
 
 use crate::ClosureId;
 
@@ -19,7 +20,7 @@ use serde::{
     ser::SerializeTupleVariant,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use serde_derive::{Deserialize, Serialize};
+use serde_derive::Deserialize;
 use std::{
     any::Any,
     collections::HashMap,
@@ -29,7 +30,7 @@ use std::{
 use sulafat_macros::with_types;
 
 #[with_types]
-#[derive(Debug, Eq)]
+#[derive(Debug, Eq, Serialize)]
 pub enum Element<Msg> {
     Div(Div<Msg>),
     Span(Span<Msg>),
@@ -171,26 +172,6 @@ impl<Msg> PartialEq for Element<Msg> {
             (Element::Div(this), Element::Div(other)) => this == other,
             (Element::Span(this), Element::Span(other)) => this == other,
             _ => false,
-        }
-    }
-}
-
-impl<Msg> Serialize for Element<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            Element::Div(div) => {
-                let mut variant = serializer.serialize_tuple_variant("Element", 0, "Div", 1)?;
-                variant.serialize_field(div)?;
-                variant.end()
-            }
-            Element::Span(span) => {
-                let mut variant = serializer.serialize_tuple_variant("Element", 1, "Span", 1)?;
-                variant.serialize_field(span)?;
-                variant.end()
-            }
         }
     }
 }

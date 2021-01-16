@@ -9,3 +9,8 @@ pub fn with_types(args: TokenStream, items: TokenStream) -> TokenStream {
 pub fn dbg(items: TokenStream) -> TokenStream {
     sulafat_macros_impl::dbg(items.into()).into()
 }
+
+#[proc_macro_derive(Serialize)]
+pub fn derive_serialize(items: TokenStream) -> TokenStream {
+    sulafat_macros_impl::derive_serialize(items.into()).into()
+}
