@@ -3,7 +3,6 @@ use crate::{
 };
 use sulafat_macros::Serialize;
 
-use serde_derive::Deserialize;
 use std::{any::Any, collections::HashMap, rc::Weak};
 use sulafat_macros::VariantIdent;
 

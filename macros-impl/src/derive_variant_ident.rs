@@ -37,7 +37,7 @@ fn derive_variant_ident_impl(items: TokenStream) -> syn::Result<TokenStream> {
     let where_clause = &generics.where_clause;
     let params = Params::from(generics);
     Ok(quote! {
-        #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+        #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, ::serde_derive::Serialize, ::serde_derive::Deserialize)]
         #vis enum #types_ident {
             #(#variants,)*
         }

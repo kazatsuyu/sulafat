@@ -1,10 +1,5 @@
 use crate::{util::force_cast, ClosureId};
-use serde::{
-    de::{EnumAccess, VariantAccess, Visitor},
-    ser::SerializeTupleVariant,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use serde_derive::{Deserialize, Serialize};
+use serde::{ser::SerializeTupleVariant, Serialize, Serializer};
 use std::{
     any::Any,
     collections::HashMap,
@@ -14,10 +9,12 @@ use std::{
     marker::PhantomData,
     rc::{Rc, Weak},
 };
-use sulafat_macros::VariantIdent;
+use sulafat_macros::{Serialize, VariantIdent};
 
+#[derive(Serialize)]
 pub struct Handler<Args, Msg> {
     closure_id: ClosureId,
+    #[serde(skip)]
     handle: Box<dyn Handle<Args, Msg>>,
 }
 
@@ -81,41 +78,6 @@ impl<Args, Msg> Handler<Args, Msg> {
 impl<Args, Msg> Debug for Handler<Args, Msg> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Handler({:?})", self.closure_id)
-    }
-}
-
-impl<Args, Msg> Serialize for Handler<Args, Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_newtype_struct("Handler", &self.closure_id)
-    }
-}
-
-impl<'de, Args, Msg> Deserialize<'de> for Handler<Args, Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct HandlerVisitor<Args, Msg>(PhantomData<(Args, Msg)>);
-        impl<'de, Args, Msg> Visitor<'de> for HandlerVisitor<Args, Msg> {
-            type Value = Handler<Args, Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "Id")
-            }
-            fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let closure_id = ClosureId::deserialize(deserializer)?;
-                Ok(Handler {
-                    closure_id,
-                    handle: Box::new(|_| unreachable!()),
-                })
-            }
-        }
-        deserializer.deserialize_newtype_struct("Handler", HandlerVisitor(Default::default()))
     }
 }
 
@@ -260,58 +222,16 @@ impl<Msg> Serialize for Attribute<Msg> {
             Attribute::OnClick(handler) => {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 1, "OnClick", 1)?;
-                variant.serialize_field(&handler.closure_id)?;
+                variant.serialize_field(handler.as_ref())?;
                 variant.end()
             }
             Attribute::OnPointerMove(handler) => {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 2, "OnPointerMove", 1)?;
-                variant.serialize_field(&handler.closure_id)?;
+                variant.serialize_field(handler.as_ref())?;
                 variant.end()
             }
         }
-    }
-}
-
-impl<'de, Msg> Deserialize<'de> for Attribute<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct AttributeVisitor<Msg>(std::marker::PhantomData<Msg>);
-
-        impl<'de, Msg> Visitor<'de> for AttributeVisitor<Msg> {
-            type Value = Attribute<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "variant of Single or List")
-            }
-            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                #[derive(Deserialize)]
-                enum Tag {
-                    Id,
-                    OnClick,
-                    OnPointerMove,
-                }
-                let (v, variant) = data.variant::<Tag>()?;
-                Ok(match v {
-                    Tag::Id => Attribute::Id(variant.newtype_variant::<String>()?),
-                    Tag::OnClick => {
-                        Attribute::OnClick(Rc::new(variant.newtype_variant::<Handler<(), Msg>>()?))
-                    }
-                    Tag::OnPointerMove => Attribute::OnPointerMove(Rc::new(
-                        variant.newtype_variant::<Handler<(f64, f64), Msg>>()?,
-                    )),
-                })
-            }
-        }
-        deserializer.deserialize_enum(
-            "Node",
-            &["Single", "List"],
-            AttributeVisitor(Default::default()),
-        )
     }
 }
 

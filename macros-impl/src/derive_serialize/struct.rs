@@ -89,7 +89,6 @@ impl<'a> Struct<'a> {
             })
             .collect::<Vec<_>>();
         let len = Literal::usize_unsuffixed(fields.len());
-        dbg!(ident_str, &len);
         let serializer = quote! {
             use #_SerializeStruct as _;
             let mut serializer = #_Serializer::serialize_struct(serializer, #ident_str, #len)?;

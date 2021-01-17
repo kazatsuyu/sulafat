@@ -3,7 +3,7 @@ use std::ops::Deref;
 use crate::{element::AttributeList, Apply, ApplyResult, VariantIdent};
 use serde_derive::{Deserialize, Serialize};
 
-use super::RenderedAttribute;
+use super::{attribute, RenderedAttribute};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename = "AttributeList")]
@@ -60,7 +60,11 @@ impl Apply for RenderedAttributeList {
                     while i < self.len() && self[i].variant_ident() < attribute.variant_ident() {
                         i += 1;
                     }
-                    self.list.insert(i, attribute);
+                    if i < self.len() && self[i].variant_ident() == attribute.variant_ident() {
+                        self.list[i] = attribute;
+                    } else {
+                        self.list.insert(i, attribute);
+                    }
                     i += 1;
                 }
             }

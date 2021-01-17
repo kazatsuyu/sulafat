@@ -12,11 +12,15 @@ pub struct TypeId {
 }
 
 impl TypeId {
-    pub(crate) fn of<T: 'static>() -> Self {
+    pub(crate) fn of<T: 'static + ?Sized>() -> Self {
         let type_id = std::any::TypeId::of::<T>();
         let mut hasher = StealHasher::<SIZE_OF_TYPEID>::default();
         type_id.hash(&mut hasher);
         Self { t: hasher.get() }
+    }
+
+    pub(crate) fn inner(&self) -> TypeIdRawType {
+        self.t
     }
 }
 
