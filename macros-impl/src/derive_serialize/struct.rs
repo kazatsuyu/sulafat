@@ -1,6 +1,8 @@
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
-use syn::{Fields, FieldsNamed, FieldsUnnamed, Generics, ItemStruct};
+use syn::{
+    Attribute, Fields, FieldsNamed, FieldsUnnamed, Generics, ItemStruct, Meta, MetaList, NestedMeta,
+};
 
 use crate::util::{fq_name::*, new_ident, Params};
 
@@ -72,22 +74,26 @@ impl<'a> Struct<'a> {
 
     fn fields_named(&self, fields: &FieldsNamed) -> (TokenStream, Vec<TokenStream>, TokenStream) {
         let Self { ident_str, .. } = self;
-        let len = Literal::usize_unsuffixed(fields.named.len());
+        let fields = fields
+            .named
+            .iter()
+            .filter_map(|field| {
+                if Self::is_skip(&field.attrs) {
+                    return None;
+                }
+                let ident = field.ident.as_ref().unwrap();
+                let ident_str = Literal::string(&ident.to_string());
+                Some(quote! {
+                    #_SerializeStruct::serialize_field(&mut serializer, #ident_str, &self.#ident)?;
+                })
+            })
+            .collect::<Vec<_>>();
+        let len = Literal::usize_unsuffixed(fields.len());
+        dbg!(ident_str, &len);
         let serializer = quote! {
             use #_SerializeStruct as _;
             let mut serializer = #_Serializer::serialize_struct(serializer, #ident_str, #len)?;
         };
-        let fields = fields
-            .named
-            .iter()
-            .map(|field| {
-                let ident = field.ident.as_ref().unwrap();
-                let ident_str = Literal::string(&ident.to_string());
-                quote! {
-                    #_SerializeStruct::serialize_field(&mut serializer, #ident_str, &self.#ident)?;
-                }
-            })
-            .collect();
         let end = quote! {
             #_SerializeStruct::end(serializer)
         };
@@ -115,5 +121,32 @@ impl<'a> Struct<'a> {
             #_SerializeTupleStruct::end(serializer)
         };
         (serializer, fields, end)
+    }
+
+    fn is_skip(attrs: &[Attribute]) -> bool {
+        attrs.iter().any(|attr| {
+            if let Ok(Meta::List(MetaList { path, nested, .. })) = attr.parse_meta() {
+                if path.leading_colon.is_none()
+                    && path.segments.len() == 1
+                    && path.segments[0].arguments.is_empty()
+                    && path.segments[0].ident.to_string() == "serde"
+                {
+                    nested.into_iter().any(|nested_meta| {
+                        if let NestedMeta::Meta(Meta::Path(path)) = nested_meta {
+                            path.leading_colon.is_none()
+                                && path.segments.len() == 1
+                                && path.segments[0].arguments.is_empty()
+                                && path.segments[0].ident.to_string() == "skip"
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        })
     }
 }

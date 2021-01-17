@@ -1,15 +1,4 @@
-use std::fmt;
-
-use super::{
-    ApplyResult, Common, Diff, Element, Node, PatchCommon, PatchElement, PatchNode, PatchSingle,
-    Single,
-};
-use fmt::Formatter;
-use serde::{
-    de::{MapAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use crate::{Common, Diff, Element, Node, PatchDiv, Single};
 use sulafat_macros::Serialize;
 
 #[derive(Default, Debug, Serialize)]
@@ -49,33 +38,12 @@ impl<Msg> From<Div<Msg>> for Node<Msg> {
     }
 }
 
-impl<Msg> From<PatchDiv<Msg>> for PatchElement<Msg> {
-    fn from(patch: PatchDiv<Msg>) -> Self {
-        PatchElement::Div(patch)
-    }
-}
-
-impl<Msg> From<PatchDiv<Msg>> for PatchSingle<Msg> {
-    fn from(patch: PatchDiv<Msg>) -> Self {
-        PatchElement::from(patch).into()
-    }
-}
-
-impl<Msg> From<PatchDiv<Msg>> for PatchNode<Msg> {
-    fn from(patch: PatchDiv<Msg>) -> Self {
-        PatchSingle::from(patch).into()
-    }
-}
-
 impl<Msg> Diff for Div<Msg> {
-    type Patch = PatchDiv<Msg>;
+    type Patch = PatchDiv;
     fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         Some(PatchDiv {
             common: self.common.diff(&mut other.common)?,
         })
-    }
-    fn apply(&mut self, patch: Self::Patch) -> ApplyResult {
-        self.common.apply(patch.common)
     }
 }
 
@@ -95,77 +63,11 @@ impl<Msg> PartialEq for Div<Msg> {
 
 impl<Msg> Eq for Div<Msg> {}
 
-impl<'de, Msg> Deserialize<'de> for Div<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct DivVisitor<Msg>(std::marker::PhantomData<Msg>);
-        impl<'de, Msg> Visitor<'de> for DivVisitor<Msg> {
-            type Value = Div<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "struct of common")
-            }
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: MapAccess<'de>,
-            {
-                let (_, common) = map.next_entry::<&str, _>()?.unwrap();
-                Ok(Div::new(common))
-            }
-        }
-        deserializer.deserialize_struct("Div", &["common"], DivVisitor(Default::default()))
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct PatchDiv<Msg> {
-    pub(crate) common: PatchCommon<Msg>,
-}
-
-impl<Msg> Serialize for PatchDiv<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut r#struct = serializer.serialize_struct("PatchDiv", 1)?;
-        r#struct.serialize_field("common", &self.common)?;
-        r#struct.end()
-    }
-}
-
-impl<'de, Msg> Deserialize<'de> for PatchDiv<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PatchDivVisitor<Msg>(std::marker::PhantomData<Msg>);
-        impl<'de, Msg> Visitor<'de> for PatchDivVisitor<Msg> {
-            type Value = PatchDiv<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "struct of common")
-            }
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: MapAccess<'de>,
-            {
-                let (_, common) = map.next_entry::<&str, _>()?.unwrap();
-                Ok(PatchDiv { common })
-            }
-        }
-        deserializer.deserialize_struct(
-            "PatchDiv",
-            &["common"],
-            PatchDivVisitor(Default::default()),
-        )
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use super::{
-        super::{id, PatchAttribute},
-        Common, Diff, Div, PatchCommon, PatchDiv,
+    use crate::{
+        element::rendered::{RenderedAttribute, RenderedDiv},
+        id, Apply, Common, Diff, Div, PatchAttributeListOp, PatchCommon, PatchDiv,
     };
     #[test]
     fn same() {
@@ -176,20 +78,33 @@ mod test {
 
     #[test]
     fn different_id() {
-        let mut div1 = Div::<()>::new(Common::new(None, vec![id("a".into())], Default::default()));
-        let mut div2 = Div::new(Common::new(None, vec![id("b".into())], Default::default()));
+        let div1 = Div::<()>::new(Common::new(
+            None,
+            vec![id("a".into())].into(),
+            Default::default(),
+        ));
+        let mut div2 = Div::new(Common::new(
+            None,
+            vec![id("b".into())].into(),
+            Default::default(),
+        ));
         assert_ne!(div1, div2);
         let patch = div1.diff(&mut div2);
         assert_eq!(
             patch,
             Some(PatchDiv {
                 common: PatchCommon {
-                    attr: vec![PatchAttribute::Insert(id("b".into()))],
+                    attribute_list: vec![PatchAttributeListOp::Insert(RenderedAttribute::Id(
+                        "b".into()
+                    ))]
+                    .into(),
                     children: Default::default()
                 }
             })
         );
-        div1.apply(patch.unwrap()).unwrap();
-        assert_eq!(div1, div2);
+        let mut rendered_div1 = RenderedDiv::from(&div1);
+        let rendered_div2 = RenderedDiv::from(&div2);
+        rendered_div1.apply(patch.unwrap()).unwrap();
+        assert_eq!(rendered_div1, rendered_div2);
     }
 }

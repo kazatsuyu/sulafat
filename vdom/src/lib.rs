@@ -13,15 +13,20 @@ pub mod node;
 pub mod program;
 pub mod single;
 pub(crate) mod util;
+pub mod variant_ident;
 pub mod view;
 
 pub use closure_id::ClosureId;
-pub use diff::{ApplyResult, Diff};
+pub use diff::{Apply, ApplyResult, Diff};
 pub use element::{
-    id, on_click, on_pointer_move, Common, Div, Element, PatchCommon, PatchElement, Span,
+    id, on_click, on_pointer_move, Attribute, Common, Div, Element, Handler, PatchAttributeList,
+    PatchAttributeListOp, PatchCommon, PatchDiv, PatchElement, PatchSpan, RenderedElement, Span,
 };
-pub use list::{List, PatchList};
-pub use node::{Node, PatchNode};
+pub use list::{List, PatchList, PatchListOp, RenderedList};
+pub use node::{Node, PatchNode, RenderedNode};
 pub use program::{EventHandler, Manager, Program};
 pub use single::{PatchSingle, Single};
+pub use variant_ident::VariantIdent;
 pub use view::CachedView;
+
+extern crate self as sulafat_vdom;

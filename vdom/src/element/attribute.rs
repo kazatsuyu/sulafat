@@ -14,10 +14,10 @@ use std::{
     marker::PhantomData,
     rc::{Rc, Weak},
 };
-use sulafat_macros::with_types;
+use sulafat_macros::VariantIdent;
 
 pub struct Handler<Args, Msg> {
-    id: ClosureId,
+    closure_id: ClosureId,
     handle: Box<dyn Handle<Args, Msg>>,
 }
 
@@ -32,7 +32,7 @@ impl<Args, Msg> Handler<Args, Msg> {
         Msg: 'static,
     {
         Self {
-            id: ClosureId::new::<F, Args, Msg>(&f),
+            closure_id: ClosureId::new::<F, Args, Msg>(&f),
             handle: Box::new(f),
         }
     }
@@ -44,7 +44,7 @@ impl<Args, Msg> Handler<Args, Msg> {
         Data: 'static + PartialEq,
     {
         Self {
-            id: ClosureId::with_data::<F, &Data, Args, Msg>(&f),
+            closure_id: ClosureId::with_data::<F, &Data, Args, Msg>(&f),
             handle: Box::new(CachedHandle {
                 data,
                 f,
@@ -60,7 +60,7 @@ impl<Args, Msg> Handler<Args, Msg> {
         Msg2: 'static + From<Msg>,
     {
         force_cast(self).unwrap_or_else(|this| Handler {
-            id: this.id,
+            closure_id: this.closure_id,
             handle: Box::new(move |args| this.handle.invoke(args).into()),
         })
     }
@@ -72,11 +72,15 @@ impl<Args, Msg> Handler<Args, Msg> {
     {
         self as Rc<dyn Any>
     }
+
+    pub fn closure_id(&self) -> &ClosureId {
+        &self.closure_id
+    }
 }
 
 impl<Args, Msg> Debug for Handler<Args, Msg> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "Handler({:?})", self.id)
+        write!(f, "Handler({:?})", self.closure_id)
     }
 }
 
@@ -85,7 +89,7 @@ impl<Args, Msg> Serialize for Handler<Args, Msg> {
     where
         S: Serializer,
     {
-        serializer.serialize_newtype_struct("Handler", &self.id)
+        serializer.serialize_newtype_struct("Handler", &self.closure_id)
     }
 }
 
@@ -104,9 +108,9 @@ impl<'de, Args, Msg> Deserialize<'de> for Handler<Args, Msg> {
             where
                 D: Deserializer<'de>,
             {
-                let id = ClosureId::deserialize(deserializer)?;
+                let closure_id = ClosureId::deserialize(deserializer)?;
                 Ok(Handler {
-                    id,
+                    closure_id,
                     handle: Box::new(|_| unreachable!()),
                 })
             }
@@ -167,8 +171,7 @@ where
     }
 }
 
-#[with_types]
-#[derive(Debug)]
+#[derive(Debug, VariantIdent)]
 pub enum Attribute<Msg> {
     Id(String),
     OnClick(Rc<Handler<(), Msg>>),
@@ -183,10 +186,10 @@ impl<Msg> Attribute<Msg> {
         match self {
             Attribute::Id(_) => {}
             Attribute::OnClick(handler) => {
-                handlers.insert(handler.id, Rc::downgrade(&handler.clone().as_any()));
+                handlers.insert(handler.closure_id, Rc::downgrade(&handler.clone().as_any()));
             }
             Attribute::OnPointerMove(handler) => {
-                handlers.insert(handler.id, Rc::downgrade(&handler.clone().as_any()));
+                handlers.insert(handler.closure_id, Rc::downgrade(&handler.clone().as_any()));
             }
         }
     }
@@ -214,7 +217,7 @@ where
 
 impl<Args, Msg> PartialEq for Handler<Args, Msg> {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.handle.is_same(&*other.handle)
+        self.closure_id == other.closure_id && self.handle.is_same(&*other.handle)
     }
 }
 
@@ -257,13 +260,13 @@ impl<Msg> Serialize for Attribute<Msg> {
             Attribute::OnClick(handler) => {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 1, "OnClick", 1)?;
-                variant.serialize_field(&handler.id)?;
+                variant.serialize_field(&handler.closure_id)?;
                 variant.end()
             }
             Attribute::OnPointerMove(handler) => {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 2, "OnPointerMove", 1)?;
-                variant.serialize_field(&handler.id)?;
+                variant.serialize_field(&handler.closure_id)?;
                 variant.end()
             }
         }
@@ -308,97 +311,6 @@ impl<'de, Msg> Deserialize<'de> for Attribute<Msg> {
             "Node",
             &["Single", "List"],
             AttributeVisitor(Default::default()),
-        )
-    }
-}
-
-#[derive(Debug)]
-pub enum PatchAttribute<Msg> {
-    Remove(AttributeType),
-    Insert(Attribute<Msg>),
-}
-
-impl<Msg> Clone for PatchAttribute<Msg> {
-    fn clone(&self) -> Self {
-        match self {
-            PatchAttribute::Remove(attribute_type) => {
-                PatchAttribute::Remove(attribute_type.clone())
-            }
-            PatchAttribute::Insert(attribute) => PatchAttribute::Insert(attribute.clone()),
-        }
-    }
-}
-
-impl<Msg> PartialEq for PatchAttribute<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (PatchAttribute::Remove(this), PatchAttribute::Remove(other)) => this == other,
-            (PatchAttribute::Insert(this), PatchAttribute::Insert(other)) => this == other,
-            _ => false,
-        }
-    }
-}
-
-impl<Msg> Eq for PatchAttribute<Msg> {}
-
-impl<Msg> Serialize for PatchAttribute<Msg> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            PatchAttribute::Remove(attribute_type) => {
-                let mut variant =
-                    serializer.serialize_tuple_variant("PatchAttributeOp", 0, "Remove", 1)?;
-                variant.serialize_field(attribute_type)?;
-                variant.end()
-            }
-            PatchAttribute::Insert(attribute) => {
-                let mut variant =
-                    serializer.serialize_tuple_variant("PatchAttributeOp", 0, "Insert", 1)?;
-                variant.serialize_field(attribute)?;
-                variant.end()
-            }
-        }
-    }
-}
-
-impl<'de, Msg> Deserialize<'de> for PatchAttribute<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PatchAttributeOpVisitor<Msg>(std::marker::PhantomData<Msg>);
-        impl<'de, Msg> Visitor<'de> for PatchAttributeOpVisitor<Msg> {
-            type Value = PatchAttribute<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "variant of Remove or Insert")
-            }
-            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                #[derive(Deserialize)]
-                enum Tag {
-                    Remove,
-                    Insert,
-                }
-                let (v, variant) = data.variant::<Tag>()?;
-                Ok(match v {
-                    Tag::Remove => {
-                        PatchAttribute::Remove(variant.newtype_variant::<AttributeType>()?)
-                    }
-                    Tag::Insert => {
-                        PatchAttribute::Insert(variant.newtype_variant::<Attribute<Msg>>()?)
-                    }
-                })
-            }
-        }
-
-        deserializer.deserialize_enum(
-            "PatchAttributeOp",
-            &["Remove", "Insert"],
-            PatchAttributeOpVisitor(Default::default()),
         )
     }
 }

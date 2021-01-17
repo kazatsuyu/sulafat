@@ -39,7 +39,7 @@ impl Program for MyProgram {
             } else {
                 vec![]
             };
-            Div::new(Common::new(None, attr, vec![text.into()].into())).into()
+            Div::new(Common::new(None, attr.into(), vec![text.into()].into())).into()
         });
         children.collect()
     }

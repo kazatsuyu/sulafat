@@ -1,4 +1,4 @@
-use crate::{list::PatchListOp, ApplyResult, Diff, PatchNode};
+use crate::{list::PatchListOp, Diff, PatchNode};
 
 use super::{ClosureId, Node};
 use std::{
@@ -68,7 +68,7 @@ impl<Msg> CachedView<Msg> {
         }
     }
 
-    pub(crate) fn add_patch(&mut self, patches: &mut Vec<PatchListOp<Msg>>) {
+    pub(crate) fn add_patch(&mut self, patches: &mut Vec<PatchListOp>) {
         self.render().add_patch(patches);
     }
 }
@@ -99,18 +99,15 @@ impl<Msg> Debug for CachedView<Msg> {
 }
 
 impl<Msg> Diff for CachedView<Msg> {
-    type Patch = PatchNode<Msg>;
+    type Patch = PatchNode;
     fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         if self.share_cache_if_same(other) {
             None
         } else if self.is_different(other) {
-            Some(PatchNode::Replace(other.full_render().clone()))
+            Some(PatchNode::Replace((&*other.full_render()).into()))
         } else {
             unsafe { self.rendered() }.unwrap().diff(other.render())
         }
-    }
-    fn apply(&mut self, _patch: Self::Patch) -> ApplyResult {
-        unreachable!()
     }
 }
 

@@ -1,13 +1,7 @@
-use std::{any::Any, collections::HashMap, fmt, rc::Weak};
+use std::{any::Any, collections::HashMap, rc::Weak};
 
-use crate::{list::PatchListOp, ApplyResult, CachedView, ClosureId, Diff, List, PatchNode, Single};
-use fmt::Formatter;
-use serde::{
-    de::{EnumAccess, VariantAccess, Visitor},
-    ser::SerializeTupleVariant,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use serde_derive::Deserialize;
+use crate::{list::PatchListOp, CachedView, ClosureId, Diff, List, PatchNode, Single};
+use serde::{ser::SerializeTupleVariant, Serialize, Serializer};
 
 #[derive(Debug)]
 pub enum Node<Msg> {
@@ -54,9 +48,9 @@ impl<Msg> Node<Msg> {
         }
     }
 
-    pub(crate) fn add_patch(&mut self, patches: &mut Vec<PatchListOp<Msg>>) {
+    pub(crate) fn add_patch(&mut self, patches: &mut Vec<PatchListOp>) {
         match self {
-            Node::Single(single) => patches.push(PatchListOp::New(single.clone())),
+            Node::Single(single) => patches.push(PatchListOp::New((&*single).into())),
             Node::List(list) => list.add_patch(patches),
             Node::CachedView(view) => view.add_patch(patches),
         }
@@ -75,36 +69,14 @@ impl<Msg> Node<Msg> {
 }
 
 impl<Msg> Diff for Node<Msg> {
-    type Patch = PatchNode<Msg>;
+    type Patch = PatchNode;
     fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         match (self, other) {
             (Node::Single(s), Node::Single(o)) => Some(s.diff(o)?.into()),
             (Node::List(s), Node::List(o)) => Some(s.diff(o)?.into()),
             (Node::CachedView(s), Node::CachedView(o)) => s.diff(o),
-            (_, other) => Some(PatchNode::Replace(other.clone())),
+            (_, other) => Some(PatchNode::Replace((&*other).into())),
         }
-    }
-
-    fn apply(&mut self, patch: Self::Patch) -> ApplyResult {
-        use PatchNode::*;
-        match patch {
-            Replace(node) => *self = node,
-            Single(patch) => {
-                if let Node::Single(single) = self {
-                    single.apply(patch)?
-                } else {
-                    return Err("単一ノードではありません。".into());
-                }
-            }
-            List(patch) => {
-                if let Node::List(list) = self {
-                    list.apply(patch)?
-                } else {
-                    return Err("リストではありません。".into());
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -126,38 +98,6 @@ impl<Msg> Serialize for Node<Msg> {
             }
             Node::CachedView(view) => unsafe { view.rendered() }.unwrap().serialize(serializer),
         }
-    }
-}
-
-impl<'de, Msg> Deserialize<'de> for Node<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct NodeVisitor<Msg>(std::marker::PhantomData<Msg>);
-
-        impl<'de, Msg> Visitor<'de> for NodeVisitor<Msg> {
-            type Value = Node<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "variant of Single or List")
-            }
-            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                #[derive(Deserialize, Debug)]
-                enum VariantTag {
-                    Single,
-                    List,
-                }
-                let (v, variant) = data.variant::<VariantTag>()?;
-                Ok(match v {
-                    VariantTag::Single => variant.newtype_variant::<Single<Msg>>()?.into(),
-                    VariantTag::List => variant.newtype_variant::<List<Msg>>()?.into(),
-                })
-            }
-        }
-        deserializer.deserialize_enum("Node", &["Single", "List"], NodeVisitor(Default::default()))
     }
 }
 
@@ -186,7 +126,7 @@ impl<Msg> Eq for Node<Msg> {}
 
 #[cfg(test)]
 mod test {
-    use super::{Diff, Node, PatchNode};
+    use crate::{Apply, Diff, Node, PatchNode, RenderedNode};
 
     #[test]
     fn same_single() {
@@ -204,20 +144,23 @@ mod test {
 
     #[test]
     fn different() {
-        let mut list: Node<()> = vec!["a".into()].into();
+        let list: Node<()> = vec!["a".into()].into();
         let mut text = "a".into();
         assert_ne!(list, text);
         let patch = list.diff(&mut text);
-        assert_eq!(patch, Some(PatchNode::Replace(text.clone())));
-        list.apply(patch.unwrap()).unwrap();
-        assert_eq!(list, text);
+        assert_eq!(patch, Some(PatchNode::Replace((&text).into())));
+        let mut rendered_list = RenderedNode::from(&list);
+        let rendered_text = RenderedNode::from(&text);
+        rendered_list.apply(patch.unwrap()).unwrap();
+        assert_eq!(rendered_list, rendered_text);
     }
 
     #[test]
     fn serde() {
         let node1: Node<()> = "a".into();
         let ser = bincode::serialize(&node1).unwrap();
-        let node2 = bincode::deserialize(&ser).unwrap();
-        assert_eq!(node1, node2);
+        let rendered_node1 = RenderedNode::from(&node1);
+        let rendered_node2 = bincode::deserialize(&ser).unwrap();
+        assert_eq!(rendered_node1, rendered_node2);
     }
 }

@@ -1,22 +1,22 @@
-use heck::SnakeCase;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{parse2, Fields, Ident, ItemEnum};
 
 use crate::util::Params;
 
-fn with_types_impl(args: TokenStream, items: TokenStream) -> syn::Result<TokenStream> {
-    let item_enum = parse2::<ItemEnum>(items.clone())?;
+fn derive_variant_ident_impl(items: TokenStream) -> syn::Result<TokenStream> {
+    let item_enum = parse2::<ItemEnum>(items)?;
     let vis = &item_enum.vis;
-    let types_ident = parse2::<Option<Ident>>(args)?
-        .unwrap_or_else(|| Ident::new(&format!("{}Type", item_enum.ident), Span::call_site()));
+    let types_ident = Ident::new(
+        &format!("{}VariantIdent", item_enum.ident),
+        Span::call_site(),
+    );
     let variants = item_enum
         .variants
         .iter()
         .map(|variant| &variant.ident)
         .collect::<Vec<_>>();
     let ident = &item_enum.ident;
-    let snake_types_ident = Ident::new(&types_ident.to_string().to_snake_case(), Span::call_site());
     let match_arms = item_enum
         .variants
         .iter()
@@ -37,13 +37,13 @@ fn with_types_impl(args: TokenStream, items: TokenStream) -> syn::Result<TokenSt
     let where_clause = &generics.where_clause;
     let params = Params::from(generics);
     Ok(quote! {
-        #items
         #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
         #vis enum #types_ident {
             #(#variants,)*
         }
-        impl #generics #ident #params #where_clause {
-            #vis fn #snake_types_ident(&self) -> #types_ident {
+        impl #generics ::sulafat_vdom::VariantIdent for #ident #params #where_clause {
+            type Type = #types_ident;
+            fn variant_ident(&self) -> Self::Type {
                 match self {
                     #(#match_arms)*
                 }
@@ -52,6 +52,6 @@ fn with_types_impl(args: TokenStream, items: TokenStream) -> syn::Result<TokenSt
     })
 }
 
-pub fn with_types(args: TokenStream, items: TokenStream) -> TokenStream {
-    with_types_impl(args, items).unwrap_or_else(|e| e.to_compile_error())
+pub fn derive_variant_ident(items: TokenStream) -> TokenStream {
+    derive_variant_ident_impl(items).unwrap_or_else(|e| e.to_compile_error())
 }

@@ -81,11 +81,3 @@ pub(crate) fn new_name(names: &mut HashSet<String>, base_name: &str, index: &mut
 pub(crate) fn new_ident(names: &mut HashSet<String>, base_name: &str, index: &mut usize) -> Ident {
     Ident::new(&new_name(names, base_name, index), Span::call_site())
 }
-
-pub(crate) fn new_lifetime(
-    names: &mut HashSet<String>,
-    base_name: &str,
-    index: &mut usize,
-) -> Lifetime {
-    Lifetime::new(&new_name(names, base_name, index), Span::call_site())
-}

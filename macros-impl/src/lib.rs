@@ -1,8 +1,8 @@
 mod dbg;
 mod derive_serialize;
+mod derive_variant_ident;
 pub(crate) mod util;
-mod with_types;
 
 pub use dbg::dbg;
 pub use derive_serialize::derive_serialize;
-pub use with_types::with_types;
+pub use derive_variant_ident::derive_variant_ident;

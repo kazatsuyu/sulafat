@@ -61,7 +61,7 @@ impl<P: Program> Manager<P> {
         self.on_msg(&msg)
     }
 
-    pub fn diff(&mut self) -> Option<PatchNode<P::Msg>> {
+    pub fn diff(&mut self) -> Option<PatchNode> {
         let mut view = CachedView::new(None, Memo::new(P::view, self.model.clone()));
         let diff = self.view.diff(&mut view);
         self.handlers.clear();

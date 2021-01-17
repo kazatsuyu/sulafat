@@ -1,13 +1,9 @@
-use std::{any::Any, collections::HashMap, fmt, rc::Weak};
+use std::{any::Any, collections::HashMap, rc::Weak};
 
-use crate::{ApplyResult, ClosureId, Diff, Element, Node, PatchNode, PatchSingle};
-use fmt::Formatter;
-use serde::{
-    de::{EnumAccess, VariantAccess, Visitor},
-    Deserialize, Deserializer,
-};
-use serde_derive::Deserialize;
+use crate::{ClosureId, Diff, Element, Node, PatchSingle};
 use sulafat_macros::Serialize;
+
+use super::RenderedSingle;
 
 #[derive(Debug, Serialize)]
 pub enum Single<Msg> {
@@ -55,42 +51,20 @@ impl<Msg> From<Single<Msg>> for Node<Msg> {
     }
 }
 
-impl<Msg> From<PatchSingle<Msg>> for PatchNode<Msg> {
-    fn from(patch: PatchSingle<Msg>) -> Self {
-        match patch {
-            PatchSingle::Replace(single) => PatchNode::Replace(single.into()),
-            _ => PatchNode::Single(patch),
-        }
-    }
-}
-
 impl<Msg> Diff for Single<Msg> {
-    type Patch = PatchSingle<Msg>;
+    type Patch = PatchSingle;
     fn diff(&self, other: &mut Self) -> Option<Self::Patch> {
         match (self, other) {
             (Single::Text(s), Single::Text(o)) => {
                 if s == o {
                     None
                 } else {
-                    Some(PatchSingle::Replace(Single::Text(o.clone())))
+                    Some(PatchSingle::Replace(RenderedSingle::Text(o.clone())))
                 }
             }
             (Single::Element(s), Single::Element(o)) => Some(s.diff(o)?.into()),
-            (_, other) => Some(PatchSingle::Replace(other.clone())),
+            (_, other) => Some(PatchSingle::Replace((&*other).into())),
         }
-    }
-    fn apply(&mut self, patch: Self::Patch) -> ApplyResult {
-        match patch {
-            PatchSingle::Replace(node) => *self = node,
-            PatchSingle::Element(patch) => {
-                if let Single::Element(element) = self {
-                    element.apply(patch)?
-                } else {
-                    return Err("Elementではありません".into());
-                }
-            }
-        }
-        Ok(())
     }
 }
 
@@ -118,41 +92,6 @@ impl<Msg> From<&str> for Node<Msg> {
     }
 }
 
-impl<'de, Msg> Deserialize<'de> for Single<Msg> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct SingleVisitor<Msg>(std::marker::PhantomData<Msg>);
-        impl<'de, Msg> Visitor<'de> for SingleVisitor<Msg> {
-            type Value = Single<Msg>;
-            fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "variant of Text or Element")
-            }
-            fn visit_enum<A>(self, data: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                #[derive(Debug, Copy, Clone, Deserialize)]
-                enum VariantTag {
-                    Text,
-                    Element,
-                }
-                let (v, variant) = data.variant::<VariantTag>()?;
-                Ok(match v {
-                    VariantTag::Text => variant.newtype_variant::<String>()?.into(),
-                    VariantTag::Element => variant.newtype_variant::<Element<Msg>>()?.into(),
-                })
-            }
-        }
-        deserializer.deserialize_enum(
-            "Single",
-            &["Text", "Element"],
-            SingleVisitor(Default::default()),
-        )
-    }
-}
-
 impl<Msg> Clone for Single<Msg> {
     fn clone(&self) -> Self {
         match self {
@@ -176,7 +115,7 @@ impl<Msg> Eq for Single<Msg> {}
 
 #[cfg(test)]
 mod test {
-    use crate::{Diff, Div, PatchSingle, Single};
+    use crate::{single::RenderedSingle, Apply, Diff, Div, PatchSingle, Single};
 
     #[test]
     fn same_element() {
@@ -194,12 +133,14 @@ mod test {
 
     #[test]
     fn different() {
-        let mut text: Single<()> = "a".into();
+        let text: Single<()> = "a".into();
         let mut div = Div::default().into();
         assert_ne!(text, div);
         let patch = text.diff(&mut div);
-        assert_eq!(patch, Some(PatchSingle::Replace(div.clone())));
-        text.apply(patch.unwrap()).unwrap();
-        assert_eq!(text, div);
+        assert_eq!(patch, Some(PatchSingle::Replace((&div).into())));
+        let mut rendered_text = RenderedSingle::from(&text);
+        let rendered_div = RenderedSingle::from(&div);
+        rendered_text.apply(patch.unwrap()).unwrap();
+        assert_eq!(rendered_text, rendered_div);
     }
 }

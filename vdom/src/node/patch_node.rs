@@ -1,10 +1,10 @@
-use crate::{Node, PatchList, PatchSingle};
+use crate::{PatchList, PatchSingle, RenderedNode};
 use serde_derive::Deserialize;
 use sulafat_macros::Serialize;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub enum PatchNode<Msg> {
-    Replace(Node<Msg>),
-    Single(PatchSingle<Msg>),
-    List(PatchList<Msg>),
+pub enum PatchNode {
+    Replace(RenderedNode),
+    Single(PatchSingle),
+    List(PatchList),
 }
