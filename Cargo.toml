@@ -1,8 +1,11 @@
 [workspace]
 members = [
+    "cli",
     "macros",
     "macros-impl",
     "runtime-web",
+    "style",
+    "util",
     "vdom",
 ]
 

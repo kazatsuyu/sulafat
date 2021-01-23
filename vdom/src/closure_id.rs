@@ -1,28 +1,7 @@
-use crate::util::{safe_cast, RawState, RawStateOf, StealHasher};
+use crate::util::safe_cast;
 use serde_derive::{Deserialize, Serialize};
 use std::hash::Hash;
-
-const SIZE_OF_TYPEID: usize = std::mem::size_of::<std::any::TypeId>();
-
-type TypeIdRawType = <RawStateOf<SIZE_OF_TYPEID> as RawState>::Type;
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash, Serialize, Deserialize)]
-pub struct TypeId {
-    t: TypeIdRawType,
-}
-
-impl TypeId {
-    pub(crate) fn of<T: 'static + ?Sized>() -> Self {
-        let type_id = std::any::TypeId::of::<T>();
-        let mut hasher = StealHasher::<SIZE_OF_TYPEID>::default();
-        type_id.hash(&mut hasher);
-        Self { t: hasher.get() }
-    }
-
-    pub(crate) fn inner(&self) -> TypeIdRawType {
-        self.t
-    }
-}
+use sulafat_util::TypeId;
 
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub enum ClosureId {

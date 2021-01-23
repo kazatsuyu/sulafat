@@ -13,14 +13,18 @@ path = "src/lib.rs"
 [features]
 default = []
 nightly-features = []
+export-css = []
 
 [dependencies]
-serde_derive = "1.0.119"
-serde = "1.0.119"
+serde_derive = "1.0.120"
+serde = "1.0.120"
 num = "0.3.1"
 
 [dependencies.sulafat-macros]
 path = "../macros"
+
+[dependencies.sulafat-util]
+path = "../util"
 
 [dev-dependencies]
 bincode = "1.3.1"

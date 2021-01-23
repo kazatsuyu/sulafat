@@ -1,0 +1,27 @@
+[package]
+name = "sulafat-style"
+version = "0.1.0"
+authors = ["kazatsuyu <shirayama.kazatsuyu@gmail.com>"]
+edition = "2018"
+description = "Styles for sulafat."
+repository = "https://github.com/kazatsuyu/sulafat.git"
+license = "(MIT OR Apache-2.0)"
+
+[dependencies]
+serde = "1.0.120"
+serde_derive = "1.0.120"
+base58 = "0.1.0"
+
+[dependencies.sulafat-vdom]
+path = "../vdom"
+
+[dependencies.sulafat-macros]
+path = "../macros"
+
+[dependencies.sulafat-util]
+path = "../util"
+
+[features]
+default = []
+export = []
+

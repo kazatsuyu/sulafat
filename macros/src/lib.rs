@@ -14,3 +14,8 @@ pub fn dbg(items: TokenStream) -> TokenStream {
 pub fn derive_serialize(items: TokenStream) -> TokenStream {
     sulafat_macros_impl::derive_serialize(items.into()).into()
 }
+
+#[proc_macro_derive(StyleSet, attributes(style_set))]
+pub fn derive_style_set(items: TokenStream) -> TokenStream {
+    sulafat_macros_impl::derive_style_set(items.into()).into()
+}

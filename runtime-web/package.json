@@ -8,6 +8,7 @@
   "license": "(MIT OR Apache-2.0)",
   "scripts": {
     "build": "wasm-pack build --dev --out-dir wasm --target web -- --features nightly-features && tsc",
+    "postbuild": "cp ../target/wasm32-unknown-unknown/debug/deps/style.css tests/style.css",
     "start": "simple-http-server"
   },
   "devDependencies": {

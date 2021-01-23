@@ -11,3 +11,7 @@ proc-macro = true
 
 [dependencies.sulafat-macros-impl]
 path = "../macros-impl"
+
+[features]
+default = []
+export-css = ["sulafat-macros-impl/export-css"]

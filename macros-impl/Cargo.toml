@@ -12,3 +12,7 @@ heck = "0.3.2"
 [dependencies.syn]
 version = "1.0.58"
 features = ["full"]
+
+[features]
+default = []
+export-css = []

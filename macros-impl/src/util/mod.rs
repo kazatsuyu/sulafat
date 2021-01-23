@@ -5,6 +5,9 @@ use quote::ToTokens;
 use std::collections::HashSet;
 use syn::{punctuated::Punctuated, GenericParam, Generics, Lifetime, Token};
 
+#[cfg(feature = "export-css")]
+use std::env::{args, var};
+
 pub(crate) enum Param<'a> {
     LifeTime(&'a Lifetime),
     Ident(&'a Ident),
@@ -80,4 +83,18 @@ pub(crate) fn new_name(names: &mut HashSet<String>, base_name: &str, index: &mut
 
 pub(crate) fn new_ident(names: &mut HashSet<String>, base_name: &str, index: &mut usize) -> Ident {
     Ident::new(&new_name(names, base_name, index), Span::call_site())
+}
+
+#[cfg(feature = "export-css")]
+pub(crate) fn out_dir() -> Option<String> {
+    var("OUT_DIR").ok().or_else(|| {
+        let mut args = args();
+        while let Some(arg) = args.next() {
+            if arg == "--out-dir" {
+                return args.next();
+            }
+        }
+        // panic!("Output directry not found either $OUT_DIR or --out-dir.");
+        None
+    })
 }

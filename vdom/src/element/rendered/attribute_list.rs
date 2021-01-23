@@ -3,7 +3,7 @@ use std::ops::Deref;
 use crate::{element::AttributeList, Apply, ApplyResult, VariantIdent};
 use serde_derive::{Deserialize, Serialize};
 
-use super::{attribute, RenderedAttribute};
+use super::RenderedAttribute;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename = "AttributeList")]

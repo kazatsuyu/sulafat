@@ -2,6 +2,7 @@ mod utils;
 
 use bincode::{deserialize, serialize};
 use std::{cell::RefCell, thread_local};
+use sulafat_macros::StyleSet;
 use sulafat_vdom::{on_click, Common, Div, EventHandler, Manager, Node, Program};
 use wasm_bindgen::prelude::*;
 
@@ -72,3 +73,19 @@ pub fn internal_on_event(data: Vec<u8>) {
         manager.on_event(&deserialize::<EventHandler>(&data).unwrap());
     })
 }
+
+#[derive(StyleSet)]
+#[style_set{
+    left: 100px;
+    right: 80%;
+}]
+struct Style;
+
+#[derive(StyleSet)]
+#[style_set{
+    .style2 {
+        left: 100px;
+        right: 80%;
+    }
+}]
+struct Style2;

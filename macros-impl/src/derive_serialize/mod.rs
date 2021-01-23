@@ -1,5 +1,6 @@
 mod r#enum;
 mod r#struct;
+
 use proc_macro2::{Span, TokenStream};
 use r#enum::Enum;
 use r#struct::Struct;

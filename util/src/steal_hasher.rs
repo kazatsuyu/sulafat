@@ -2,7 +2,7 @@ use std::{hash::Hasher, mem::size_of};
 
 use num::{NumCast, PrimInt};
 
-use super::{RawState, RawStateOf};
+use crate::{RawState, RawStateOf};
 
 #[derive(Default)]
 pub(crate) struct StealHasher<const SIZE: usize>(<RawStateOf<SIZE> as RawState>::Type, u32)

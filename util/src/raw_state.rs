@@ -1,9 +1,9 @@
 use num::{NumCast, PrimInt};
 use std::ops::BitXorAssign;
 
-pub(crate) struct RawStateOf<const SIZE: usize>;
+pub struct RawStateOf<const SIZE: usize>;
 
-pub(crate) trait RawState {
+pub trait RawState {
     type Type: Default + NumCast + PrimInt + BitXorAssign;
 }
 impl RawState for RawStateOf<1> {

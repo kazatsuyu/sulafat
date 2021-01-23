@@ -50,7 +50,7 @@ impl<Args, Msg> Handler<Args, Msg> {
         }
     }
 
-    fn wrap<Msg2>(self) -> Handler<Args, Msg2>
+    pub fn wrap<Msg2>(self) -> Handler<Args, Msg2>
     where
         Msg: 'static,
         Args: 'static,
