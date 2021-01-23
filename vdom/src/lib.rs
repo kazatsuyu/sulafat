@@ -19,8 +19,9 @@ pub mod view;
 pub use closure_id::ClosureId;
 pub use diff::{Apply, ApplyResult, Diff};
 pub use element::{
-    id, on_click, on_pointer_move, Attribute, Common, Div, Element, Handler, PatchAttributeList,
-    PatchAttributeListOp, PatchCommon, PatchDiv, PatchElement, PatchSpan, RenderedElement, Span,
+    id, on_click, on_pointer_move, style, Attribute, Common, Div, Element, Handler,
+    PatchAttributeList, PatchAttributeListOp, PatchCommon, PatchDiv, PatchElement, PatchSpan,
+    RenderedElement, Span,
 };
 pub use list::{List, PatchList, PatchListOp, RenderedList};
 pub use node::{Node, PatchNode, RenderedNode};

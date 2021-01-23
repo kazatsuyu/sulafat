@@ -2,7 +2,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{element::RenderedElement, Apply, ApplyResult, PatchSingle, RenderedNode, Single};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "Single")]
 pub enum RenderedSingle {
     Text(String),

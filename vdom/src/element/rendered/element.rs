@@ -7,7 +7,7 @@ use crate::{
 
 use super::{RenderedDiv, RenderedSpan};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "Element")]
 pub enum RenderedElement {
     Div(RenderedDiv),
@@ -58,7 +58,7 @@ impl Apply for RenderedElement {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatchElement {
     Replace(RenderedElement),
     Div(PatchDiv),

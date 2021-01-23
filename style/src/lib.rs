@@ -1,6 +1,6 @@
 use base58::ToBase58;
+use serde_derive::{Deserialize, Serialize};
 use std::{cell::RefCell, fmt::Write};
-use sulafat_macros::VariantIdent;
 use sulafat_util::TypeId;
 
 // やりたいこと
@@ -8,7 +8,7 @@ use sulafat_util::TypeId;
 // * テーマによる動的なスタイル切り替え
 //
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Length {
     Em(f64),
     Px(f64),
@@ -16,16 +16,16 @@ pub enum Length {
     Vw(f64),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Parcentage(pub f64);
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LengthOrPercentage {
     Length(Length),
     Parcentage(Parcentage),
 }
 
-#[derive(Debug, VariantIdent, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StyleRule {
     Left(LengthOrPercentage),
     Right(LengthOrPercentage),

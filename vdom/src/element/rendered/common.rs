@@ -3,7 +3,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use super::RenderedAttributeList;
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "Common")]
 pub struct RenderedCommon {
     pub(crate) attribute_list: RenderedAttributeList,
@@ -39,7 +39,7 @@ impl Apply for RenderedCommon {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PatchCommon {
     pub(crate) attribute_list: PatchAttributeList,
     pub(crate) children: Option<PatchList>,

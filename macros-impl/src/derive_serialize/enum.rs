@@ -139,8 +139,9 @@ impl<'a> Enum<'a> {
             .iter()
             .map(|field| {
                 let ident = field.ident.as_ref().unwrap();
+                let ident_str = Literal::string(&ident.to_string());
                 quote! {
-                    #_SerializeStructVariant::serialize_struct_variant(&mut serializer, &#ident)?;
+                    #_SerializeStructVariant::serialize_field(&mut serializer, #ident_str, &#ident)?;
                 }
             })
             .collect();

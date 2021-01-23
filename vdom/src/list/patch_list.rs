@@ -1,7 +1,7 @@
 use crate::{single::RenderedSingle, PatchNode, PatchSingle};
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatchList {
     All(Vec<PatchListOp>),
     Entries(usize, Vec<(usize, PatchSingle)>),
@@ -14,7 +14,7 @@ impl From<PatchList> for PatchNode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatchListOp {
     Nop,
     Modify(PatchSingle),

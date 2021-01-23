@@ -147,6 +147,15 @@ function deserializeElement(decoder: Decoder): Element {
         });
         break;
       }
+      case ATTRIBUTE_STYLE: {
+        const style = a[1];
+        if (typeof style === "string") {
+          element.setAttribute("class", style);
+        } else {
+          element.setAttribute("style", style.join(";"));
+        }
+        break;
+      }
     }
   }
   element.append(...children);
@@ -162,14 +171,19 @@ function deserializeCommon(decoder: Decoder): [attr: Attr[], children: Node[]] {
 const ATTRIBUTE_ID = 0;
 const ATTRIBUTE_ON_CLICK = 1;
 const ATTRIBUTE_ON_POINTER_MOVE = 2;
+const ATTRIBUTE_STYLE = 3;
+
 type AttrTypes = {
   [ATTRIBUTE_ID]: string;
   [ATTRIBUTE_ON_CLICK]: Uint8Array;
   [ATTRIBUTE_ON_POINTER_MOVE]: Uint8Array;
+  [ATTRIBUTE_STYLE]: Style;
 };
 type Attr = {
   [K in keyof AttrTypes]: [K, AttrTypes[K]];
 }[keyof AttrTypes];
+
+type Style = string | string[];
 
 function* deserializeAttr(decoder: Decoder): Generator<Attr> {
   const len = decoder.u64();
@@ -185,6 +199,9 @@ function* deserializeAttr(decoder: Decoder): Generator<Attr> {
       case ATTRIBUTE_ON_POINTER_MOVE:
         yield [attr, deserializeHandlerId(decoder)];
         break;
+      case ATTRIBUTE_STYLE:
+        yield [attr, deserializeStyle(decoder)];
+        break;
       default:
         unreachable();
     }
@@ -193,6 +210,82 @@ function* deserializeAttr(decoder: Decoder): Generator<Attr> {
 
 function deserializeHandlerId(decoder: Decoder): Uint8Array {
   return decoder.read(12);
+}
+
+const STYLE_STATIC = 0;
+const STYLE_DYNAMIC = 1;
+
+function deserializeStyle(decoder: Decoder): Style {
+  switch (decoder.u32()) {
+    case STYLE_STATIC:
+      return decoder.string();
+    case STYLE_DYNAMIC: {
+      const len = decoder.u64();
+      const rules: string[] = [];
+      for (let i = 0; i < len; i += 1) {
+        rules.push(deserializeStyleRule(decoder));
+      }
+      return rules;
+    }
+    default:
+      unreachable();
+  }
+}
+
+const STYLE_RULE_LEFT = 0;
+const STYLE_RULE_RIGHT = 1;
+const LENGTH_OR_PARCENTAGE_LENGTH = 0;
+const LENGTH_OR_PARCENTAGE_PARCENTAGE = 1;
+const LENGTH_EM = 0;
+const LENGTH_PX = 1;
+const LENGTH_VH = 2;
+const LENGTH_VW = 3;
+
+function deserializeStyleRule(decoder: Decoder): string {
+  switch (decoder.u32()) {
+    case STYLE_RULE_LEFT:
+      switch (decoder.u32()) {
+        case LENGTH_OR_PARCENTAGE_LENGTH:
+          switch (decoder.u32()) {
+            case LENGTH_EM:
+              return `left: ${decoder.f64()}em`;
+            case LENGTH_PX:
+              return `left: ${decoder.f64()}px`;
+            case LENGTH_VH:
+              return `left: ${decoder.f64()}vh`;
+            case LENGTH_VW:
+              return `left: ${decoder.f64()}vw`;
+            default:
+              unreachable();
+          }
+        case LENGTH_OR_PARCENTAGE_PARCENTAGE:
+          return `left: ${decoder.f64()}%`;
+        default:
+          unreachable();
+      }
+    case STYLE_RULE_RIGHT:
+      switch (decoder.u32()) {
+        case LENGTH_OR_PARCENTAGE_LENGTH:
+          switch (decoder.u32()) {
+            case LENGTH_EM:
+              return `right: ${decoder.f64()}em`;
+            case LENGTH_PX:
+              return `right: ${decoder.f64()}px`;
+            case LENGTH_VH:
+              return `right: ${decoder.f64()}vh`;
+            case LENGTH_VW:
+              return `right: ${decoder.f64()}vw`;
+            default:
+              unreachable();
+          }
+        case LENGTH_OR_PARCENTAGE_PARCENTAGE:
+          return `right: ${decoder.f64()}%`;
+        default:
+          unreachable();
+      }
+    default:
+      unreachable();
+  }
 }
 
 export function render() {
@@ -382,6 +475,9 @@ function applyCommon<E extends Element>(element: E, decoder: Decoder): E {
           case ATTRIBUTE_ON_POINTER_MOVE:
             unregisterEventListener(element, "pointermove");
             break;
+          case ATTRIBUTE_STYLE:
+            element.removeAttribute("class");
+            element.removeAttribute("style");
           default:
             unreachable();
         }
@@ -413,6 +509,17 @@ function applyCommon<E extends Element>(element: E, decoder: Decoder): E {
               buf.set(new Uint8Array(new Float64Array([e.x, e.y]).buffer), 16);
               internal_on_event(buf);
             });
+            break;
+          }
+          case ATTRIBUTE_STYLE: {
+            const style = deserializeStyle(decoder);
+            if (typeof style === "string") {
+              element.setAttribute("class", style);
+              element.removeAttribute("style");
+            } else {
+              element.removeAttribute("class");
+              element.setAttribute("style", style.join(";"));
+            }
             break;
           }
           default:

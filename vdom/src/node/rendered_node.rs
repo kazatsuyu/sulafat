@@ -1,7 +1,7 @@
 use crate::{single::RenderedSingle, Apply, ApplyResult, Node, PatchNode, RenderedList};
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "Node")]
 pub enum RenderedNode {
     Single(RenderedSingle),

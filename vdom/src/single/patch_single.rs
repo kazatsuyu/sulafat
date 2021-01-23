@@ -3,7 +3,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use super::RenderedSingle;
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatchSingle {
     Replace(RenderedSingle),
     Element(PatchElement),

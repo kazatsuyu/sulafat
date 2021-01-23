@@ -7,7 +7,7 @@ use crate::{
 
 use super::RenderedCommon;
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "Span")]
 pub struct RenderedSpan {
     pub(crate) common: RenderedCommon,
@@ -52,7 +52,7 @@ impl Apply for RenderedSpan {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PatchSpan {
     pub(crate) common: PatchCommon,
 }

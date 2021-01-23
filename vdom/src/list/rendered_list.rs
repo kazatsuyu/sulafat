@@ -5,7 +5,7 @@ use crate::{
 };
 use serde_derive::{Deserialize, Serialize};
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "List")]
 pub struct RenderedList {
     list: Vec<RenderedSingle>,

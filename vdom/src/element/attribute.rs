@@ -1,5 +1,6 @@
 use crate::{util::force_cast, ClosureId};
 use serde::{ser::SerializeTupleVariant, Serialize, Serializer};
+use serde_derive::Deserialize;
 use std::{
     any::Any,
     collections::HashMap,
@@ -10,6 +11,9 @@ use std::{
     rc::{Rc, Weak},
 };
 use sulafat_macros::{Serialize, VariantIdent};
+use sulafat_style::StyleSet;
+
+use sulafat_style::StyleRule;
 
 #[derive(Serialize)]
 pub struct Handler<Args, Msg> {
@@ -133,11 +137,18 @@ where
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum Style {
+    Static(String),
+    Dynamic(Vec<StyleRule>),
+}
+
 #[derive(Debug, VariantIdent)]
 pub enum Attribute<Msg> {
     Id(String),
     OnClick(Rc<Handler<(), Msg>>),
     OnPointerMove(Rc<Handler<(f64, f64), Msg>>),
+    Style(Style),
 }
 
 impl<Msg> Attribute<Msg> {
@@ -153,6 +164,7 @@ impl<Msg> Attribute<Msg> {
             Attribute::OnPointerMove(handler) => {
                 handlers.insert(handler.closure_id, Rc::downgrade(&handler.clone().as_any()));
             }
+            Attribute::Style(_) => {}
         }
     }
 }
@@ -175,6 +187,39 @@ where
     Msg: 'static,
 {
     Attribute::OnPointerMove(Rc::new(Handler::new(f)))
+}
+
+pub trait ToStyle {
+    fn to_style(&self) -> Style;
+}
+
+impl<S> ToStyle for S
+where
+    S: StyleSet,
+{
+    fn to_style(&self) -> Style {
+        #[cfg(feature = "export-css")]
+        {
+            Style::Static(S::name())
+        }
+        #[cfg(not(feature = "export-css"))]
+        {
+            Style::Dynamic(Vec::from(S::rules()))
+        }
+    }
+}
+
+impl ToStyle for [StyleRule] {
+    fn to_style(&self) -> Style {
+        Style::Dynamic(self.to_owned())
+    }
+}
+
+pub fn style<Msg, S>(s: S) -> Attribute<Msg>
+where
+    S: ToStyle,
+{
+    Attribute::Style(s.to_style())
 }
 
 impl<Args, Msg> PartialEq for Handler<Args, Msg> {
@@ -204,6 +249,7 @@ impl<Msg> Clone for Attribute<Msg> {
             Attribute::Id(id) => Attribute::Id(id.clone()),
             Attribute::OnClick(handler) => Attribute::OnClick(handler.clone()),
             Attribute::OnPointerMove(handler) => Attribute::OnPointerMove(handler.clone()),
+            Attribute::Style(style) => Attribute::Style(style.clone()),
         }
     }
 }
@@ -229,6 +275,11 @@ impl<Msg> Serialize for Attribute<Msg> {
                 let mut variant =
                     serializer.serialize_tuple_variant("Attribute", 2, "OnPointerMove", 1)?;
                 variant.serialize_field(handler.as_ref())?;
+                variant.end()
+            }
+            Attribute::Style(style) => {
+                let mut variant = serializer.serialize_tuple_variant("Attribute", 3, "Style", 1)?;
+                variant.serialize_field(style)?;
                 variant.end()
             }
         }

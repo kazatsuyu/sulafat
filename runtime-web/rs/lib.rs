@@ -3,7 +3,7 @@ mod utils;
 use bincode::{deserialize, serialize};
 use std::{cell::RefCell, thread_local};
 use sulafat_macros::StyleSet;
-use sulafat_vdom::{on_click, Common, Div, EventHandler, Manager, Node, Program};
+use sulafat_vdom::{on_click, style, Common, Div, EventHandler, Manager, Node, Program};
 use wasm_bindgen::prelude::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -35,10 +35,31 @@ impl Program for MyProgram {
                 1 => format!("{}", *model),
                 _ => format!("{}", index - 2),
             };
+
+            #[derive(StyleSet)]
+            #[style_set{
+                .style1 {
+                    left: 10px;
+                }
+            }]
+            struct Style1;
+
+            #[derive(StyleSet)]
+            #[style_set{
+                .style2 {
+                    left: 20px;
+                }
+            }]
+            struct Style2;
+
             let attr = if index == 0 {
                 vec![on_click(|_| ())]
             } else {
-                vec![]
+                vec![if index % 2 == 1 {
+                    style(Style1)
+                } else {
+                    style(Style2)
+                }]
             };
             Div::new(Common::new(None, attr.into(), vec![text.into()].into())).into()
         });
@@ -73,19 +94,3 @@ pub fn internal_on_event(data: Vec<u8>) {
         manager.on_event(&deserialize::<EventHandler>(&data).unwrap());
     })
 }
-
-#[derive(StyleSet)]
-#[style_set{
-    left: 100px;
-    right: 80%;
-}]
-struct Style;
-
-#[derive(StyleSet)]
-#[style_set{
-    .style2 {
-        left: 100px;
-        right: 80%;
-    }
-}]
-struct Style2;

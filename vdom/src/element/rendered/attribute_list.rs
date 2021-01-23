@@ -5,7 +5,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use super::RenderedAttribute;
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "AttributeList")]
 pub struct RenderedAttributeList {
     list: Vec<RenderedAttribute>,
@@ -73,7 +73,7 @@ impl Apply for RenderedAttributeList {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PatchAttributeList {
     list: Vec<PatchAttributeListOp>,
 }
@@ -92,7 +92,7 @@ impl IntoIterator for PatchAttributeList {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum PatchAttributeListOp {
     Remove(<RenderedAttribute as VariantIdent>::Type),
     Insert(RenderedAttribute),

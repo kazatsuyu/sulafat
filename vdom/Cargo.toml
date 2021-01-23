@@ -13,7 +13,10 @@ path = "src/lib.rs"
 [features]
 default = []
 nightly-features = []
-export-css = []
+export-css = [
+    "sulafat-style/export-css",
+    "sulafat-macros/export-css"
+]
 
 [dependencies]
 serde_derive = "1.0.120"
@@ -25,6 +28,9 @@ path = "../macros"
 
 [dependencies.sulafat-util]
 path = "../util"
+
+[dependencies.sulafat-style]
+path = "../style"
 
 [dev-dependencies]
 bincode = "1.3.1"

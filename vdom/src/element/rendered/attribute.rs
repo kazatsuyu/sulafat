@@ -1,13 +1,14 @@
-use crate::{Attribute, ClosureId, VariantIdent};
+use crate::{element::attribute::Style, Attribute, ClosureId, VariantIdent};
 use serde_derive::{Deserialize, Serialize};
 use sulafat_macros::VariantIdent;
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, VariantIdent)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, VariantIdent)]
 #[serde(rename = "Attribute")]
 pub enum RenderedAttribute {
     Id(String),
     OnClick(ClosureId),
     OnPointerMove(ClosureId),
+    Style(Style),
 }
 
 impl<Msg> From<&Attribute<Msg>> for RenderedAttribute {
@@ -18,6 +19,7 @@ impl<Msg> From<&Attribute<Msg>> for RenderedAttribute {
             Attribute::OnPointerMove(handler) => {
                 RenderedAttribute::OnPointerMove(handler.closure_id().clone())
             }
+            Attribute::Style(style) => RenderedAttribute::Style(style.clone()),
         }
     }
 }
@@ -28,6 +30,7 @@ impl From<<Attribute<()> as VariantIdent>::Type> for RenderedAttributeVariantIde
             <Attribute<()> as VariantIdent>::Type::Id => Self::Id,
             <Attribute<()> as VariantIdent>::Type::OnClick => Self::OnClick,
             <Attribute<()> as VariantIdent>::Type::OnPointerMove => Self::OnPointerMove,
+            <Attribute<()> as VariantIdent>::Type::Style => Self::Style,
         }
     }
 }
