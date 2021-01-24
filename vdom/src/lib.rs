@@ -7,12 +7,15 @@
 
 pub mod attribute;
 pub mod closure_id;
+pub mod cmd;
 pub mod diff;
 pub mod element;
 pub mod list;
 pub mod node;
 pub mod program;
+pub mod random;
 pub mod single;
+pub mod timer;
 pub(crate) mod util;
 pub mod variant_ident;
 pub mod view;

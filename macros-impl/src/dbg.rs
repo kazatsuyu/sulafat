@@ -6,7 +6,7 @@ fn dbg_impl(items: TokenStream) -> syn::Result<TokenStream> {
         match #items {
             #[cfg(target_arch = "wasm32")]
             tmp => {
-                crate::util::debug(&format!("{:?}", tmp).into());
+                crate::util::debug(&format!("[{}:{}] {:?}", file!(), line!(), tmp).into());
                 tmp
             }
             #[cfg(not(target_arch = "wasm32"))]
