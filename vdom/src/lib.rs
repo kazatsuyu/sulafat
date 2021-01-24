@@ -5,6 +5,7 @@
 #![cfg_attr(feature = "nightly-features", deny(unsafe_op_in_unsafe_fn))]
 #![cfg_attr(not(feature = "nightly-features"), allow(unused_unsafe))]
 
+pub mod attribute;
 pub mod closure_id;
 pub mod diff;
 pub mod element;
@@ -16,12 +17,14 @@ pub(crate) mod util;
 pub mod variant_ident;
 pub mod view;
 
+pub use attribute::{
+    id, on_click, on_pointer_move, style, Attribute, AttributeList, Handler, PatchAttributeList,
+    PatchAttributeListOp, RenderedAttribute, RenderedAttributeList, Style,
+};
 pub use closure_id::ClosureId;
 pub use diff::{Apply, ApplyResult, Diff};
 pub use element::{
-    id, on_click, on_pointer_move, style, Attribute, Common, Div, Element, Handler,
-    PatchAttributeList, PatchAttributeListOp, PatchCommon, PatchDiv, PatchElement, PatchSpan,
-    RenderedElement, Span,
+    Common, Div, Element, PatchCommon, PatchDiv, PatchElement, PatchSpan, RenderedElement, Span,
 };
 pub use list::{List, PatchList, PatchListOp, RenderedList};
 pub use node::{Node, PatchNode, RenderedNode};

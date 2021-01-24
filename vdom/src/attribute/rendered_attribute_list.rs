@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use crate::{element::AttributeList, Apply, ApplyResult, VariantIdent};
+use crate::{Apply, ApplyResult, AttributeList, VariantIdent};
 use serde_derive::{Deserialize, Serialize};
 
 use super::RenderedAttribute;

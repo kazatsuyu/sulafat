@@ -1,7 +1,5 @@
-use base58::ToBase58;
 use serde_derive::{Deserialize, Serialize};
 use std::{cell::RefCell, fmt::Write};
-use sulafat_util::TypeId;
 
 // やりたいこと
 // * CSSを自動で出力（Web)
@@ -33,12 +31,7 @@ pub enum StyleRule {
 
 pub trait StyleSet: 'static {
     fn rules() -> &'static [StyleRule];
-    fn id() -> TypeId {
-        TypeId::of::<Self>()
-    }
-    fn name() -> String {
-        format!("sulafat-{}", Self::id().inner().to_le_bytes().to_base58())
-    }
+    fn name() -> String;
     fn render<R: StyleRenderer>(renderer: &mut R) {
         for rule in Self::rules() {
             renderer.render(rule);

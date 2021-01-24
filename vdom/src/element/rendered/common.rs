@@ -1,7 +1,7 @@
-use crate::{Apply, ApplyResult, Common, PatchAttributeList, PatchList, RenderedList};
+use crate::{
+    Apply, ApplyResult, Common, PatchAttributeList, PatchList, RenderedAttributeList, RenderedList,
+};
 use serde_derive::{Deserialize, Serialize};
-
-use super::RenderedAttributeList;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "Common")]

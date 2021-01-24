@@ -1,7 +1,5 @@
-use crate::{Diff, List, PatchAttributeList, PatchCommon};
+use crate::{AttributeList, Diff, List, PatchAttributeList, PatchCommon};
 use sulafat_macros::Serialize;
-
-use super::AttributeList;
 
 #[derive(Default, Debug, Serialize)]
 pub struct Common<Msg> {
@@ -64,11 +62,8 @@ impl<Msg> Eq for Common<Msg> {}
 #[cfg(test)]
 mod test {
     use crate::{
-        element::{
-            rendered::{RenderedAttribute, RenderedCommon},
-            PatchAttributeListOp,
-        },
-        id, Apply, Common, Diff, PatchCommon,
+        element::rendered::RenderedCommon, id, Apply, Common, Diff, PatchAttributeListOp,
+        PatchCommon, RenderedAttribute,
     };
     #[test]
     fn same() {

@@ -94,7 +94,12 @@ pub(crate) fn out_dir() -> Option<String> {
                 return args.next();
             }
         }
-        // panic!("Output directry not found either $OUT_DIR or --out-dir.");
         None
     })
+}
+
+pub(crate) fn crate_name(name: &str) -> syn::Result<Ident> {
+    proc_macro_crate::crate_name(name)
+        .map(|name| Ident::new(&name, Span::call_site()))
+        .map_err(|s| syn::Error::new(Span::call_site(), s))
 }

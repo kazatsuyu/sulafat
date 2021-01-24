@@ -121,9 +121,8 @@ impl<Msg> PartialEq for Element<Msg> {
 #[cfg(test)]
 mod test {
     use crate::{
-        element::rendered::RenderedAttribute, id, Apply, Common, Diff, Div, Element,
-        PatchAttributeListOp, PatchCommon, PatchDiv, PatchElement, PatchSpan, RenderedElement,
-        Span,
+        id, Apply, Common, Diff, Div, Element, PatchAttributeListOp, PatchCommon, PatchDiv,
+        PatchElement, PatchSpan, RenderedAttribute, RenderedElement, Span,
     };
 
     #[test]

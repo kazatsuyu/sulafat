@@ -7,6 +7,8 @@ use syn::{
     parse2, Attribute, ItemStruct, Lit, Token,
 };
 
+use crate::util::crate_name;
+
 #[cfg(feature = "export-css")]
 use {
     crate::util::out_dir,
@@ -27,18 +29,25 @@ enum Length {
 
 impl ToTokens for Length {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let sulafat_style = match crate_name("sulafat-style") {
+            Ok(ident) => ident,
+            Err(err) => {
+                tokens.extend(err.into_compile_error());
+                return;
+            }
+        };
         tokens.extend(match self {
             Length::Em(em) => {
-                quote! { ::sulafat_style::Length::Em(#em) }
+                quote! { ::#sulafat_style::Length::Em(#em) }
             }
             Length::Px(px) => {
-                quote! { ::sulafat_style::Length::Px(#px) }
+                quote! { ::#sulafat_style::Length::Px(#px) }
             }
             Length::Vh(em) => {
-                quote! { ::sulafat_style::Length::Vh(#em) }
+                quote! { ::#sulafat_style::Length::Vh(#em) }
             }
             Length::Vw(px) => {
-                quote! { ::sulafat_style::Length::Vw(#px) }
+                quote! { ::#sulafat_style::Length::Vw(#px) }
             }
         })
     }
@@ -49,7 +58,14 @@ struct Parcentage(f64);
 impl ToTokens for Parcentage {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let value = self.0;
-        tokens.extend(quote! {::sulafat_style::Parcentage(#value)})
+        let sulafat_style = match crate_name("sulafat-style") {
+            Ok(ident) => ident,
+            Err(err) => {
+                tokens.extend(err.into_compile_error());
+                return;
+            }
+        };
+        tokens.extend(quote! {::#sulafat_style::Parcentage(#value)})
     }
 }
 
@@ -120,12 +136,19 @@ impl Parse for LengthOrPercentage {
 
 impl ToTokens for LengthOrPercentage {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let sulafat_style = match crate_name("sulafat-style") {
+            Ok(ident) => ident,
+            Err(err) => {
+                tokens.extend(err.into_compile_error());
+                return;
+            }
+        };
         tokens.extend(match self {
             LengthOrPercentage::Length(length) => {
-                quote! { ::sulafat_style::LengthOrPercentage::Length(#length) }
+                quote! { ::#sulafat_style::LengthOrPercentage::Length(#length) }
             }
             LengthOrPercentage::Parcentage(parcentage) => {
-                quote! { ::sulafat_style::LengthOrPercentage::Parcentage(#parcentage) }
+                quote! { ::#sulafat_style::LengthOrPercentage::Parcentage(#parcentage) }
             }
         })
     }
@@ -157,9 +180,16 @@ impl Parse for StyleRule {
 
 impl ToTokens for StyleRule {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let sulafat_style = match crate_name("sulafat-style") {
+            Ok(ident) => ident,
+            Err(err) => {
+                tokens.extend(err.into_compile_error());
+                return;
+            }
+        };
         tokens.extend(match self {
-            StyleRule::Left(left) => quote! { ::sulafat_style::StyleRule::Left(#left) },
-            StyleRule::Right(right) => quote! { ::sulafat_style::StyleRule::Right(#right) },
+            StyleRule::Left(left) => quote! { ::#sulafat_style::StyleRule::Left(#left) },
+            StyleRule::Right(right) => quote! { ::#sulafat_style::StyleRule::Right(#right) },
         })
     }
 }
@@ -293,12 +323,13 @@ fn derive_style_set_impl(items: TokenStream) -> syn::Result<TokenStream> {
             })
         }
     }
+    let sulafat_style = crate_name("sulafat-style")?;
     Ok(quote! {
-        impl ::sulafat_style::StyleSet for #ident {
+        impl ::#sulafat_style::StyleSet for #ident {
             fn name() -> String {
                 #name.to_string()
             }
-            fn rules() -> &'static [::sulafat_style::StyleRule] {
+            fn rules() -> &'static [::#sulafat_style::StyleRule] {
                 &[
                     #rules
                 ]
@@ -307,7 +338,7 @@ fn derive_style_set_impl(items: TokenStream) -> syn::Result<TokenStream> {
         const _: () = {
             thread_local! {
                 static A: () = {
-                    ::sulafat_style::export::<#ident>();
+                    ::#sulafat_style::export::<#ident>();
                 };
             }
         };

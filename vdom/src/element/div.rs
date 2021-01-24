@@ -66,8 +66,8 @@ impl<Msg> Eq for Div<Msg> {}
 #[cfg(test)]
 mod test {
     use crate::{
-        element::rendered::{RenderedAttribute, RenderedDiv},
-        id, Apply, Common, Diff, Div, PatchAttributeListOp, PatchCommon, PatchDiv,
+        element::rendered::RenderedDiv, id, Apply, Common, Diff, Div, PatchAttributeListOp,
+        PatchCommon, PatchDiv, RenderedAttribute,
     };
     #[test]
     fn same() {

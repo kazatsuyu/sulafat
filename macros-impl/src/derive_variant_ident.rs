@@ -2,7 +2,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{parse2, Fields, Ident, ItemEnum};
 
-use crate::util::Params;
+use crate::util::{crate_name, Params};
 
 fn derive_variant_ident_impl(items: TokenStream) -> syn::Result<TokenStream> {
     let item_enum = parse2::<ItemEnum>(items)?;
@@ -36,12 +36,13 @@ fn derive_variant_ident_impl(items: TokenStream) -> syn::Result<TokenStream> {
     let generics = &item_enum.generics;
     let where_clause = &generics.where_clause;
     let params = Params::from(generics);
+    let sulafat_vdom = crate_name("sulafat-vdom")?;
     Ok(quote! {
         #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, ::serde_derive::Serialize, ::serde_derive::Deserialize)]
         #vis enum #types_ident {
             #(#variants,)*
         }
-        impl #generics ::sulafat_vdom::VariantIdent for #ident #params #where_clause {
+        impl #generics ::#sulafat_vdom::VariantIdent for #ident #params #where_clause {
             type Type = #types_ident;
             fn variant_ident(&self) -> Self::Type {
                 match self {

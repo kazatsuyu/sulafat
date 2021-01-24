@@ -18,6 +18,9 @@ path = "../macros"
 [dependencies.sulafat-util]
 path = "../util"
 
+[dev-dependencies.sulafat-style]
+path = "."
+
 [features]
 default = []
 export-css = []

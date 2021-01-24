@@ -1,4 +1,4 @@
-use crate::{element::attribute::Style, Attribute, ClosureId, VariantIdent};
+use crate::{Attribute, ClosureId, Style, VariantIdent};
 use serde_derive::{Deserialize, Serialize};
 use sulafat_macros::VariantIdent;
 

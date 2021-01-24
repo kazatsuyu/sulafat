@@ -66,8 +66,8 @@ impl<Msg> Eq for Span<Msg> {}
 #[cfg(test)]
 mod test {
     use crate::{
-        element::rendered::{RenderedAttribute, RenderedSpan},
-        id, Apply, Common, Diff, PatchAttributeListOp, PatchCommon, PatchSpan, Span,
+        element::rendered::RenderedSpan, id, Apply, Common, Diff, PatchAttributeListOp,
+        PatchCommon, PatchSpan, RenderedAttribute, Span,
     };
     #[test]
     fn same() {

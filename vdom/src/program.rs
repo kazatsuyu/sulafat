@@ -1,4 +1,4 @@
-use crate::{element::Handler, view::Memo, CachedView, ClosureId, Diff, Node, PatchNode};
+use crate::{view::Memo, CachedView, ClosureId, Diff, Handler, Node, PatchNode};
 use serde_derive::{Deserialize, Serialize};
 use std::{
     any::Any,
