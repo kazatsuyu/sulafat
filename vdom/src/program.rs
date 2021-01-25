@@ -9,6 +9,18 @@ use std::{
     unimplemented,
 };
 
+#[cfg(target_arch = "wasm32")]
+use {
+    crate::cmd::{register_trigger, unregister_trigger},
+    std::{
+        future::Future,
+        mem::{forget, MaybeUninit},
+        pin::Pin,
+        ptr::null_mut,
+        task::Poll,
+    },
+};
+
 pub trait Program: 'static {
     type Model: PartialEq;
     type Msg;
@@ -33,19 +45,44 @@ pub struct Manager<P: Program> {
     model: Rc<P::Model>,
     cmd: Cmd<P::Msg>,
     handlers: HashMap<ClosureId, Weak<dyn Any>>,
+    #[cfg(target_arch = "wasm32")]
+    weak: WeakManager<P>,
 }
 
 impl<P: Program> Manager<P> {
-    pub fn new() -> Self {
+    #[cfg(target_arch = "wasm32")]
+    pub fn new() -> Box<Self> {
+        let mut uninit_this = Box::new(MaybeUninit::uninit());
+        let ptr = uninit_this.as_mut_ptr();
+        let mut weak = WeakManager::new();
+        weak.set(ptr);
+        register_trigger(weak.clone());
         let (model, cmd) = P::init_cmd();
+        unregister_trigger();
         let model = Rc::new(model);
         let view = CachedView::new(None, Memo::new(P::view, model.clone()));
-        Self {
+        let this = Self {
             view,
             model,
             cmd,
             handlers: Default::default(),
-        }
+            weak,
+        };
+        unsafe { ptr.write(this) };
+        forget(uninit_this);
+        unsafe { Box::from_raw(ptr) }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn new() -> Box<Self> {
+        let (model, cmd) = P::init_cmd();
+        let model = Rc::new(model);
+        let view = CachedView::new(None, Memo::new(P::view, model.clone()));
+        Box::new(Self {
+            view,
+            model,
+            cmd,
+            handlers: Default::default(),
+        })
     }
 
     pub fn full_render(&mut self) -> &mut Node<P::Msg> {
@@ -55,7 +92,11 @@ impl<P: Program> Manager<P> {
     }
 
     pub fn on_msg(&mut self, msg: &P::Msg) {
+        #[cfg(target_arch = "wasm32")]
+        register_trigger(self.weak.clone());
         let (model, cmd) = P::update_cmd(&self.model, msg);
+        #[cfg(target_arch = "wasm32")]
+        unregister_trigger();
         if !cmd.is_none() {
             if self.cmd.is_none() {
                 self.cmd = cmd;
@@ -101,6 +142,90 @@ impl<P: Program> Manager<P> {
             .pick_handler(&mut self.handlers);
         self.view = view;
         diff
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn trigger(&mut self) {
+        struct Trigger<P: Program>(WeakManager<P>);
+        impl<P: Program> Future for Trigger<P> {
+            type Output = ();
+            fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+                if let Some(manager) = unsafe { self.0.get_mut() } {
+                    manager.resolve(cx);
+                }
+                Poll::Ready(())
+            }
+        }
+        {
+            wasm_bindgen_futures::spawn_local(Trigger(self.weak.clone()))
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<P: Program> Drop for Manager<P> {
+    fn drop(&mut self) {
+        self.weak.reset()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub struct WeakManager<P: Program> {
+    inner: *mut WeakManagerInner<P>,
+}
+
+#[cfg(target_arch = "wasm32")]
+struct WeakManagerInner<P: Program> {
+    count: u64,
+    ptr: *mut Manager<P>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<P: Program> WeakManager<P> {
+    fn new() -> Self {
+        Self {
+            inner: Box::leak(Box::new(WeakManagerInner {
+                count: 1,
+                ptr: null_mut(),
+            })),
+        }
+    }
+    fn set(&mut self, mgr: *mut Manager<P>) {
+        unsafe { &mut *self.inner }.ptr = mgr;
+    }
+    fn reset(&mut self) {
+        unsafe { &mut *self.inner }.ptr = null_mut();
+    }
+    pub(crate) unsafe fn get_mut(&mut self) -> Option<&mut Manager<P>> {
+        let ptr = unsafe { &mut *self.inner }.ptr;
+        if ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { &mut *ptr })
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<P: Program> Drop for WeakManager<P> {
+    fn drop(&mut self) {
+        let is_zero = {
+            let count = &mut unsafe { &mut *self.inner }.count;
+            *count -= 1;
+            *count == 0
+        };
+        if is_zero {
+            let ptr = unsafe { &*self.inner }.ptr;
+            unsafe { Box::from_raw(ptr) };
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl<P: Program> Clone for WeakManager<P> {
+    fn clone(&self) -> Self {
+        unsafe { &mut *self.inner }.count += 1;
+        Self { inner: self.inner }
     }
 }
 

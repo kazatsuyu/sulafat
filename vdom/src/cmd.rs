@@ -135,3 +135,47 @@ impl<Msg> Cmd<Msg> {
         }
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+mod trigger {
+    use crate::{program::WeakManager, Program};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
+
+    thread_local! {
+        static TRRIGERS: Cell<Vec<Rc<RefCell<dyn FnMut()>>>> = std::cell::Cell::new(vec![]);
+    }
+
+    pub(crate) fn register_trigger<P: Program>(mut weak: WeakManager<P>) {
+        TRRIGERS.with(|triggers| {
+            let mut v = triggers.replace(vec![]);
+            v.push(Rc::new(RefCell::new(move || {
+                if let Some(manager) = unsafe { weak.get_mut() } {
+                    manager.trigger();
+                }
+            })));
+            triggers.set(v);
+        })
+    }
+
+    pub(crate) fn get_trriger() -> Rc<RefCell<dyn FnMut()>> {
+        TRRIGERS.with(|triggers| {
+            let v = triggers.replace(vec![]);
+            let trigger = v.last().unwrap().clone();
+            triggers.set(v);
+            trigger
+        })
+    }
+
+    pub(crate) fn unregister_trigger() {
+        TRRIGERS.with(|triggers| {
+            let mut v = triggers.replace(vec![]);
+            v.pop();
+            triggers.set(v);
+        })
+    }
+}
+#[cfg(target_arch = "wasm32")]
+pub(crate) use trigger::{get_trriger, register_trigger, unregister_trigger};

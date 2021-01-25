@@ -47,6 +47,9 @@ features = ["console", "Crypto", "Window"]
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.69"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen-futures]
+version = "0.4.19"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies.getrandom]
 version = "0.2.2"
 features = ["js"]

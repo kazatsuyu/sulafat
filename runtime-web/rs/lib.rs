@@ -116,7 +116,7 @@ impl Program for MyProgram {
 }
 
 thread_local! {
-    static MANAGER: RefCell<Manager<MyProgram>> = RefCell::new(Manager::new());
+    static MANAGER: RefCell<Box<Manager<MyProgram>>> = RefCell::new(Manager::new());
 }
 
 #[wasm_bindgen]

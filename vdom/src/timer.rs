@@ -1,10 +1,13 @@
+use crate::cmd::Cmd;
 use std::{
     future::Future,
     pin::Pin,
     task::{Context, Poll},
 };
+
 #[cfg(target_arch = "wasm32")]
 use {
+    crate::cmd::get_trriger,
     std::{cell::Cell, rc::Rc},
     wasm_bindgen::prelude::Closure,
     wasm_bindgen::JsCast,
@@ -13,8 +16,6 @@ use {
 
 #[cfg(not(target_arch = "wasm32"))]
 use chrono::{DateTime, Duration, Utc};
-
-use crate::cmd::Cmd;
 
 #[cfg(target_arch = "wasm32")]
 pub fn timeout<Msg, F>(f: F, ms: i32) -> Cmd<Msg>
@@ -35,9 +36,11 @@ where
     }
     let timeout = Timeout(Rc::new(Cell::new(false)));
     let weak = Rc::downgrade(&timeout.0);
+    let trigger = get_trriger();
     let closure = Closure::<dyn FnOnce()>::once(Box::new(move || {
         if let Some(timeout) = weak.upgrade() {
             timeout.set(true);
+            trigger.borrow_mut()();
         }
     }));
     window()
