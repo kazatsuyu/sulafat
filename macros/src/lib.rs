@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 
-#[proc_macro_derive(VariantIdent)]
-pub fn with_types(items: TokenStream) -> TokenStream {
+#[proc_macro_derive(VariantIdent, attributes(from))]
+pub fn derive_variant_ident(items: TokenStream) -> TokenStream {
     sulafat_macros_impl::derive_variant_ident(items.into()).into()
 }
 

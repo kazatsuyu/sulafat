@@ -8,8 +8,8 @@ repository = "https://github.com/kazatsuyu/sulafat.git"
 license = "(MIT OR Apache-2.0)"
 
 [dependencies]
-serde = "1.0.120"
-serde_derive = "1.0.120"
+serde = "1.0.123"
+serde_derive = "1.0.123"
 base58 = "0.1.0"
 
 [dependencies.sulafat-macros]
@@ -17,9 +17,6 @@ path = "../macros"
 
 [dependencies.sulafat-util]
 path = "../util"
-
-[dev-dependencies.sulafat-style]
-path = "."
 
 [features]
 default = []

@@ -8,6 +8,6 @@ repository = "https://github.com/kazatsuyu/sulafat.git"
 license = "(MIT OR Apache-2.0)"
 
 [dependencies]
-serde = "1.0.119"
-serde_derive = "1.0.119"
+serde = "1.0.123"
+serde_derive = "1.0.123"
 num = "0.3.1"
