@@ -7,11 +7,11 @@ use std::{
     hash::Hash,
     rc::{Rc, Weak},
 };
-use sulafat_macros::VariantIdent;
+use sulafat_macros::{Clone, PartialEq, VariantIdent};
 
 use super::Style;
 
-#[derive(Debug, VariantIdent)]
+#[derive(Debug, Clone, PartialEq, VariantIdent)]
 pub enum Attribute<Msg> {
     Id(String),
     OnClick(Rc<Handler<(), Msg>>),
@@ -37,29 +37,7 @@ impl<Msg> Attribute<Msg> {
     }
 }
 
-impl<Msg> PartialEq for Attribute<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Attribute::Id(this), Attribute::Id(other)) => this == other,
-            (Attribute::OnClick(this), Attribute::OnClick(other)) => this == other,
-            (Attribute::OnPointerMove(this), Attribute::OnPointerMove(other)) => this == other,
-            _ => false,
-        }
-    }
-}
-
 impl<Msg> Eq for Attribute<Msg> {}
-
-impl<Msg> Clone for Attribute<Msg> {
-    fn clone(&self) -> Self {
-        match self {
-            Attribute::Id(id) => Attribute::Id(id.clone()),
-            Attribute::OnClick(handler) => Attribute::OnClick(handler.clone()),
-            Attribute::OnPointerMove(handler) => Attribute::OnPointerMove(handler.clone()),
-            Attribute::Style(style) => Attribute::Style(style.clone()),
-        }
-    }
-}
 
 impl<Msg> Serialize for Attribute<Msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -90,35 +68,5 @@ impl<Msg> Serialize for Attribute<Msg> {
                 variant.end()
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::Handler;
-
-    #[test]
-    fn handler_ne() {
-        let h1 = Handler::new(|()| ());
-        let h2 = Handler::new(|()| ());
-        assert_ne!(h1, h2);
-    }
-
-    #[test]
-    fn function_ne() {
-        fn f1(_: ()) {}
-        fn f2(_: ()) {}
-        let h1 = Handler::new(f1);
-        let h2 = Handler::new(f2);
-        assert_ne!(h1, h2);
-    }
-
-    #[test]
-    fn function_ptr_ne() {
-        fn f1(_: ()) {}
-        fn f2(_: ()) {}
-        let h1 = Handler::new(f1 as fn(()) -> ());
-        let h2 = Handler::new(f2 as fn(()) -> ());
-        assert_ne!(h1, h2);
     }
 }

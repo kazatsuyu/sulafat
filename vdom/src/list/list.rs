@@ -4,8 +4,9 @@ use std::{
     any::Any, cmp::min, collections::HashMap, iter::FromIterator, mem::replace, ops::Deref,
     rc::Weak,
 };
+use sulafat_macros::{Clone, PartialEq};
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, PartialEq)]
 pub struct List<Msg> {
     flat_len: usize,
     list: Vec<Node<Msg>>,
@@ -334,22 +335,6 @@ impl<Msg> Serialize for List<Msg> {
         let mut serialize_seq = serializer.serialize_seq(Some(self.flat_len))?;
         self.serialize_impl::<S>(&mut serialize_seq)?;
         serialize_seq.end()
-    }
-}
-
-impl<Msg> Clone for List<Msg> {
-    fn clone(&self) -> Self {
-        Self {
-            flat_len: self.flat_len,
-            list: self.list.clone(),
-            full_rendered_count: self.full_rendered_count,
-        }
-    }
-}
-
-impl<Msg> PartialEq for List<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        self.flat_len == other.flat_len && self.list == other.list
     }
 }
 

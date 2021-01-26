@@ -19,3 +19,13 @@ pub fn derive_serialize(items: TokenStream) -> TokenStream {
 pub fn derive_style_set(items: TokenStream) -> TokenStream {
     sulafat_macros_impl::derive_style_set(items.into()).into()
 }
+
+#[proc_macro_derive(PartialEq)]
+pub fn derive_partial_eq(items: TokenStream) -> TokenStream {
+    sulafat_macros_impl::derive_partial_eq(items.into()).into()
+}
+
+#[proc_macro_derive(Clone)]
+pub fn derive_clone(items: TokenStream) -> TokenStream {
+    sulafat_macros_impl::derive_clone(items.into()).into()
+}

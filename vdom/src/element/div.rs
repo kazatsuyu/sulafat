@@ -1,7 +1,7 @@
 use crate::{Common, Diff, Element, Node, PatchDiv, Single};
-use sulafat_macros::Serialize;
+use sulafat_macros::{Clone, PartialEq, Serialize};
 
-#[derive(Default, Debug, Serialize)]
+#[derive(Default, Clone, Debug, PartialEq, Serialize)]
 pub struct Div<Msg> {
     pub(crate) common: Common<Msg>,
 }
@@ -44,20 +44,6 @@ impl<Msg> Diff for Div<Msg> {
         Some(PatchDiv {
             common: self.common.diff(&mut other.common)?,
         })
-    }
-}
-
-impl<Msg> Clone for Div<Msg> {
-    fn clone(&self) -> Self {
-        Self {
-            common: self.common.clone(),
-        }
-    }
-}
-
-impl<Msg> PartialEq for Div<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        self.common == other.common
     }
 }
 

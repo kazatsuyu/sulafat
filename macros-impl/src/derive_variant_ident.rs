@@ -36,7 +36,7 @@ fn derive_variant_ident_impl(items: TokenStream) -> syn::Result<TokenStream> {
     let generics = &item_enum.generics;
     let where_clause = &generics.where_clause;
     let params = Params::from(generics);
-    let sulafat_vdom = crate_name("sulafat-vdom")?;
+    let sulafat_vdom = crate_name("sulafat-vdom");
     Ok(quote! {
         #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, ::serde_derive::Serialize, ::serde_derive::Deserialize)]
         #vis enum #types_ident {
@@ -55,4 +55,41 @@ fn derive_variant_ident_impl(items: TokenStream) -> syn::Result<TokenStream> {
 
 pub fn derive_variant_ident(items: TokenStream) -> TokenStream {
     derive_variant_ident_impl(items).unwrap_or_else(|e| e.to_compile_error())
+}
+
+#[cfg(test)]
+mod test {
+    use quote::quote;
+
+    use crate::derive_variant_ident;
+
+    #[test]
+    fn it_works() {
+        assert_eq!(
+            derive_variant_ident(quote! {
+                pub enum Element<Msg> {
+                    Div(Div<Msg>),
+                    Span(Span<Msg>),
+                }
+            })
+            .to_string(),
+            quote! {
+                #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, ::serde_derive::Serialize, ::serde_derive::Deserialize)]
+                pub enum ElementVariantIdent {
+                    Div,
+                    Span,
+                }
+                impl<Msg> ::sulafat_vdom::VariantIdent for Element<Msg> {
+                    type Type = ElementVariantIdent;
+                    fn variant_ident(&self) -> Self::Type {
+                        match self {
+                            Element::Div(..) => ElementVariantIdent::Div,
+                            Element::Span(..) => ElementVariantIdent::Span,
+                        }
+                    }
+                }
+            }
+            .to_string()
+        )
+    }
 }

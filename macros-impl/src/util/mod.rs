@@ -98,8 +98,9 @@ pub(crate) fn out_dir() -> Option<String> {
     })
 }
 
-pub(crate) fn crate_name(name: &str) -> syn::Result<Ident> {
-    proc_macro_crate::crate_name(name)
-        .map(|name| Ident::new(&name, Span::call_site()))
-        .map_err(|s| syn::Error::new(Span::call_site(), s))
+pub(crate) fn crate_name(name: &str) -> Ident {
+    Ident::new(
+        &proc_macro_crate::crate_name(name).unwrap_or_else(|_| name.replace('-', "_")),
+        Span::call_site(),
+    )
 }

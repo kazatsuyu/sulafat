@@ -137,3 +137,33 @@ where
         self
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::Handler;
+
+    #[test]
+    fn handler_ne() {
+        let h1 = Handler::new(|()| ());
+        let h2 = Handler::new(|()| ());
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn function_ne() {
+        fn f1(_: ()) {}
+        fn f2(_: ()) {}
+        let h1 = Handler::new(f1);
+        let h2 = Handler::new(f2);
+        assert_ne!(h1, h2);
+    }
+
+    #[test]
+    fn function_ptr_ne() {
+        fn f1(_: ()) {}
+        fn f2(_: ()) {}
+        let h1 = Handler::new(f1 as fn(()) -> ());
+        let h2 = Handler::new(f2 as fn(()) -> ());
+        assert_ne!(h1, h2);
+    }
+}

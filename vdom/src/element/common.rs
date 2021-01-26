@@ -1,7 +1,7 @@
 use crate::{AttributeList, Diff, List, PatchAttributeList, PatchCommon};
-use sulafat_macros::Serialize;
+use sulafat_macros::{Clone, PartialEq, Serialize};
 
-#[derive(Default, Debug, Serialize)]
+#[derive(Default, Clone, Debug, PartialEq, Serialize)]
 pub struct Common<Msg> {
     #[serde(skip)]
     pub(crate) key: Option<String>,
@@ -36,24 +36,6 @@ impl<Msg> Diff for Common<Msg> {
                 children,
             }),
         }
-    }
-}
-
-impl<Msg> Clone for Common<Msg> {
-    fn clone(&self) -> Self {
-        Self {
-            key: self.key.clone(),
-            attribute_list: self.attribute_list.clone(),
-            children: self.children.clone(),
-        }
-    }
-}
-
-impl<Msg> PartialEq for Common<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-            && self.attribute_list == other.attribute_list
-            && self.children == other.children
     }
 }
 

@@ -1,9 +1,9 @@
 use std::{cmp::Ordering, iter::FromIterator, ops::Deref};
 
 use crate::{Attribute, Diff, PatchAttributeList, PatchAttributeListOp, VariantIdent};
-use sulafat_macros::Serialize;
+use sulafat_macros::{Clone, PartialEq, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AttributeList<Msg> {
     list: Vec<Attribute<Msg>>,
 }
@@ -13,20 +13,6 @@ impl<Msg> AttributeList<Msg> {
         list.sort_by(|a, b| a.variant_ident().cmp(&b.variant_ident()));
         list.dedup_by(|a, b| a.variant_ident() == b.variant_ident());
         Self { list }
-    }
-}
-
-impl<Msg> Clone for AttributeList<Msg> {
-    fn clone(&self) -> Self {
-        Self {
-            list: self.list.clone(),
-        }
-    }
-}
-
-impl<Msg> PartialEq for AttributeList<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        self.list == other.list
     }
 }
 

@@ -2,8 +2,9 @@ use std::{any::Any, collections::HashMap, rc::Weak};
 
 use crate::{list::PatchListOp, CachedView, ClosureId, Diff, List, PatchNode, Single};
 use serde::{ser::SerializeTupleVariant, Serialize, Serializer};
+use sulafat_macros::{Clone, PartialEq};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Node<Msg> {
     Single(Single<Msg>),
     List(List<Msg>),
@@ -97,27 +98,6 @@ impl<Msg> Serialize for Node<Msg> {
                 tv.end()
             }
             Node::CachedView(view) => unsafe { view.rendered() }.unwrap().serialize(serializer),
-        }
-    }
-}
-
-impl<Msg> Clone for Node<Msg> {
-    fn clone(&self) -> Self {
-        match self {
-            Node::Single(single) => Node::Single(single.clone()),
-            Node::List(list) => Node::List(list.clone()),
-            Node::CachedView(component) => Node::CachedView(component.clone()),
-        }
-    }
-}
-
-impl<Msg> PartialEq for Node<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Node::Single(this), Node::Single(other)) => this == other,
-            (Node::List(this), Node::List(other)) => this == other,
-            (Node::CachedView(this), Node::CachedView(other)) => this == other,
-            _ => false,
         }
     }
 }

@@ -1,12 +1,11 @@
 use crate::{
     Attribute, ClosureId, Common, Diff, Div, List, Node, PatchElement, Single, Span, VariantIdent,
 };
-use sulafat_macros::Serialize;
 
 use std::{any::Any, collections::HashMap, rc::Weak};
-use sulafat_macros::VariantIdent;
+use sulafat_macros::{Clone, PartialEq, Serialize, VariantIdent};
 
-#[derive(Debug, Eq, Serialize, VariantIdent)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, VariantIdent)]
 pub enum Element<Msg> {
     Div(Div<Msg>),
     Span(Span<Msg>),
@@ -94,27 +93,13 @@ impl<Msg> Diff for Element<Msg> {
         Some(match (self, other) {
             (Element::Div(div1), Element::Div(div2)) => div1.diff(div2)?.into(),
             (Element::Span(div1), Element::Span(div2)) => div1.diff(div2)?.into(),
-            (_, other) => PatchElement::Replace((&*other).into()),
+            (_, other) => {
+                if self.variant_ident() == other.variant_ident() {
+                    unreachable!()
+                }
+                PatchElement::Replace((&*other).into())
+            }
         })
-    }
-}
-
-impl<Msg> Clone for Element<Msg> {
-    fn clone(&self) -> Self {
-        match self {
-            Element::Div(div) => Element::Div(div.clone()),
-            Element::Span(span) => Element::Span(span.clone()),
-        }
-    }
-}
-
-impl<Msg> PartialEq for Element<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Element::Div(this), Element::Div(other)) => this == other,
-            (Element::Span(this), Element::Span(other)) => this == other,
-            _ => false,
-        }
     }
 }
 

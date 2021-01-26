@@ -29,13 +29,7 @@ enum Length {
 
 impl ToTokens for Length {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let sulafat_style = match crate_name("sulafat-style") {
-            Ok(ident) => ident,
-            Err(err) => {
-                tokens.extend(err.into_compile_error());
-                return;
-            }
-        };
+        let sulafat_style = crate_name("sulafat-style");
         tokens.extend(match self {
             Length::Em(em) => {
                 quote! { ::#sulafat_style::Length::Em(#em) }
@@ -58,13 +52,7 @@ struct Parcentage(f64);
 impl ToTokens for Parcentage {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let value = self.0;
-        let sulafat_style = match crate_name("sulafat-style") {
-            Ok(ident) => ident,
-            Err(err) => {
-                tokens.extend(err.into_compile_error());
-                return;
-            }
-        };
+        let sulafat_style = crate_name("sulafat-style");
         tokens.extend(quote! {::#sulafat_style::Parcentage(#value)})
     }
 }
@@ -136,13 +124,7 @@ impl Parse for LengthOrPercentage {
 
 impl ToTokens for LengthOrPercentage {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let sulafat_style = match crate_name("sulafat-style") {
-            Ok(ident) => ident,
-            Err(err) => {
-                tokens.extend(err.into_compile_error());
-                return;
-            }
-        };
+        let sulafat_style = crate_name("sulafat-style");
         tokens.extend(match self {
             LengthOrPercentage::Length(length) => {
                 quote! { ::#sulafat_style::LengthOrPercentage::Length(#length) }
@@ -180,13 +162,7 @@ impl Parse for StyleRule {
 
 impl ToTokens for StyleRule {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let sulafat_style = match crate_name("sulafat-style") {
-            Ok(ident) => ident,
-            Err(err) => {
-                tokens.extend(err.into_compile_error());
-                return;
-            }
-        };
+        let sulafat_style = crate_name("sulafat-style");
         tokens.extend(match self {
             StyleRule::Left(left) => quote! { ::#sulafat_style::StyleRule::Left(#left) },
             StyleRule::Right(right) => quote! { ::#sulafat_style::StyleRule::Right(#right) },
@@ -323,7 +299,7 @@ fn derive_style_set_impl(items: TokenStream) -> syn::Result<TokenStream> {
             })
         }
     }
-    let sulafat_style = crate_name("sulafat-style")?;
+    let sulafat_style = crate_name("sulafat-style");
     Ok(quote! {
         impl ::#sulafat_style::StyleSet for #ident {
             fn name() -> String {

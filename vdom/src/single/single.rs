@@ -1,11 +1,11 @@
 use std::{any::Any, collections::HashMap, rc::Weak};
 
 use crate::{ClosureId, Diff, Element, Node, PatchSingle};
-use sulafat_macros::Serialize;
+use sulafat_macros::{Clone, PartialEq, Serialize};
 
 use super::RenderedSingle;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum Single<Msg> {
     Text(String),
     Element(Element<Msg>),
@@ -89,25 +89,6 @@ impl<Msg> From<String> for Node<Msg> {
 impl<Msg> From<&str> for Node<Msg> {
     fn from(s: &str) -> Self {
         Single::from(s).into()
-    }
-}
-
-impl<Msg> Clone for Single<Msg> {
-    fn clone(&self) -> Self {
-        match self {
-            Single::Text(s) => Single::Text(s.clone()),
-            Single::Element(e) => Single::Element(e.clone()),
-        }
-    }
-}
-
-impl<Msg> PartialEq for Single<Msg> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Single::Text(this), Single::Text(other)) => this == other,
-            (Single::Element(this), Single::Element(other)) => this == other,
-            _ => false,
-        }
     }
 }
 

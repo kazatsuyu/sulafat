@@ -15,6 +15,8 @@ macro_rules! __fq_name {
 
 __fq_name! {
     [_Result, ::std::result::Result],
+    [_PartialEq, ::std::cmp::PartialEq],
+    [_Clone, ::std::clone::Clone],
     [_Serialize, ::serde::Serialize],
     [_Serializer, ::serde::Serializer],
     [_SerializeStruct, ::serde::ser::SerializeStruct],
