@@ -1,0 +1,11 @@
+[package]
+name = "sulafat-test"
+version = "0.1.0"
+authors = ["kazatsuyu <shirayama.kazatsuyu@gmail.com>"]
+edition = "2018"
+
+[dependencies.sulafat-style]
+path = "../style"
+
+[dependencies.sulafat-macros]
+path = "../macros"

@@ -5,6 +5,7 @@ members = [
     "macros-impl",
     "runtime-web",
     "style",
+    "test",
     "util",
     "vdom",
 ]

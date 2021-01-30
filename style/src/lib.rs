@@ -1,32 +1,35 @@
+mod value;
+
 use serde_derive::{Deserialize, Serialize};
-use std::{cell::RefCell, fmt::Write};
+use std::{
+    cell::RefCell,
+    fmt::{self, Display, Formatter, Write},
+};
+pub use value::{Length, LengthOrPercentage, Parcentage, WritingMode};
 
 // やりたいこと
 // * CSSを自動で出力（Web)
 // * テーマによる動的なスタイル切り替え
 //
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Length {
-    Em(f64),
-    Px(f64),
-    Vh(f64),
-    Vw(f64),
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Parcentage(pub f64);
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum LengthOrPercentage {
-    Length(Length),
-    Parcentage(Parcentage),
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StyleRule {
     Left(LengthOrPercentage),
     Right(LengthOrPercentage),
+    WritingMode(WritingMode),
+}
+
+impl Display for StyleRule {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            StyleRule::Left(value) => {
+                write!(f, "left:{};", value)
+            }
+            StyleRule::Right(value) => {
+                write!(f, "right:{};", value)
+            }
+            StyleRule::WritingMode(value) => write!(f, "writing-mode:{};", value),
+        }
+    }
 }
 
 pub trait StyleSet: 'static {
@@ -57,39 +60,7 @@ impl StyleRenderer for CSSRenderer {
         write!(self.string, ".{}{{", name).unwrap();
     }
     fn render(&mut self, rule: &StyleRule) {
-        match rule {
-            StyleRule::Left(LengthOrPercentage::Length(Length::Em(em))) => {
-                write!(self.string, "left:{}em;", em)
-            }
-            StyleRule::Left(LengthOrPercentage::Length(Length::Px(px))) => {
-                write!(self.string, "left:{}px;", px)
-            }
-            StyleRule::Left(LengthOrPercentage::Length(Length::Vh(vh))) => {
-                write!(self.string, "left:{}vh;", vh)
-            }
-            StyleRule::Left(LengthOrPercentage::Length(Length::Vw(vw))) => {
-                write!(self.string, "left:{}vw;", vw)
-            }
-            StyleRule::Left(LengthOrPercentage::Parcentage(Parcentage(parcentage))) => {
-                write!(self.string, "left:{}%;", parcentage)
-            }
-            StyleRule::Right(LengthOrPercentage::Length(Length::Em(em))) => {
-                write!(self.string, "right:{}em;", em)
-            }
-            StyleRule::Right(LengthOrPercentage::Length(Length::Px(px))) => {
-                write!(self.string, "right:{}px;", px)
-            }
-            StyleRule::Right(LengthOrPercentage::Length(Length::Vh(vh))) => {
-                write!(self.string, "right:{}vh;", vh)
-            }
-            StyleRule::Right(LengthOrPercentage::Length(Length::Vw(vw))) => {
-                write!(self.string, "right:{}vw;", vw)
-            }
-            StyleRule::Right(LengthOrPercentage::Parcentage(Parcentage(parcentage))) => {
-                write!(self.string, "right:{}%;", parcentage)
-            }
-        }
-        .unwrap()
+        write!(self.string, "{}", rule).unwrap()
     }
     fn finish(mut self) -> Self::Output {
         write!(self.string, "}}").unwrap();
@@ -118,40 +89,3 @@ pub fn output() -> String {
 }
 
 extern crate self as sulafat_style;
-
-#[cfg(test)]
-mod test {
-
-    use super::{
-        CSSRenderer, Length, LengthOrPercentage, Parcentage, StyleRenderer, StyleRule, StyleSet,
-    };
-    use sulafat_macros::StyleSet;
-
-    #[derive(StyleSet)]
-    #[style_set{
-        .test {
-            left: 100px;
-            right: 100%;
-        }
-    }]
-    struct Style;
-
-    #[test]
-    fn it_works() {
-        assert_eq!(
-            Style::rules(),
-            &[
-                StyleRule::Left(LengthOrPercentage::Length(Length::Px(100.))),
-                StyleRule::Right(LengthOrPercentage::Parcentage(Parcentage(100.))),
-            ]
-        )
-    }
-
-    #[test]
-    fn css_renderer() {
-        let mut renderer = CSSRenderer::default();
-        renderer.name(&Style::name());
-        Style::render(&mut renderer);
-        assert_eq!(renderer.finish(), ".test{left:100px;right:100%;}");
-    }
-}

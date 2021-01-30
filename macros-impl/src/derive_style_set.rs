@@ -1,6 +1,7 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use std::cell::Cell;
+use sulafat_style::{Length, LengthOrPercentage, Parcentage, StyleRule, WritingMode};
 use syn::{
     braced,
     parse::{Parse, ParseStream},
@@ -20,17 +21,24 @@ use {
     },
 };
 
-enum Length {
-    Em(f64),
-    Px(f64),
-    Vh(f64),
-    Vw(f64),
+struct Wrapper<T>(T);
+
+impl<T> Wrapper<T> {
+    fn as_ref(&self) -> Wrapper<&T> {
+        Wrapper(&self.0)
+    }
 }
 
-impl ToTokens for Length {
+impl ToTokens for Wrapper<Length> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.as_ref().to_tokens(tokens)
+    }
+}
+
+impl ToTokens for Wrapper<&Length> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let sulafat_style = crate_name("sulafat-style");
-        tokens.extend(match self {
+        tokens.extend(match &self.0 {
             Length::Em(em) => {
                 quote! { ::#sulafat_style::Length::Em(#em) }
             }
@@ -47,25 +55,24 @@ impl ToTokens for Length {
     }
 }
 
-struct Parcentage(f64);
-
-impl ToTokens for Parcentage {
+impl ToTokens for Wrapper<Parcentage> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
-        let value = self.0;
+        self.as_ref().to_tokens(tokens)
+    }
+}
+
+impl ToTokens for Wrapper<&Parcentage> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let value = self.0 .0;
         let sulafat_style = crate_name("sulafat-style");
         tokens.extend(quote! {::#sulafat_style::Parcentage(#value)})
     }
 }
 
-enum LengthOrPercentage {
-    Length(Length),
-    Parcentage(Parcentage),
-}
-
-impl Parse for LengthOrPercentage {
+impl Parse for Wrapper<LengthOrPercentage> {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let lit = input.parse::<Lit>()?;
-        match lit {
+        Ok(Self(match lit {
             Lit::Int(lit) => match lit.suffix() {
                 "em" => Ok(LengthOrPercentage::Length(Length::Em(lit.base10_parse()?))),
                 "px" => Ok(LengthOrPercentage::Length(Length::Px(lit.base10_parse()?))),
@@ -118,37 +125,117 @@ impl Parse for LengthOrPercentage {
                 lit.span(),
                 &format!("Unexpected value {}", &lit.into_token_stream().to_string()),
             )),
-        }
+        }?))
     }
 }
 
-impl ToTokens for LengthOrPercentage {
+impl ToTokens for Wrapper<LengthOrPercentage> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.as_ref().to_tokens(tokens)
+    }
+}
+
+impl ToTokens for Wrapper<&LengthOrPercentage> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let sulafat_style = crate_name("sulafat-style");
-        tokens.extend(match self {
+        tokens.extend(match &self.0 {
             LengthOrPercentage::Length(length) => {
+                let length = Wrapper(length);
                 quote! { ::#sulafat_style::LengthOrPercentage::Length(#length) }
             }
             LengthOrPercentage::Parcentage(parcentage) => {
+                let parcentage = Wrapper(parcentage);
                 quote! { ::#sulafat_style::LengthOrPercentage::Parcentage(#parcentage) }
             }
         })
     }
 }
 
-enum StyleRule {
-    Left(LengthOrPercentage),
-    Right(LengthOrPercentage),
+impl ToTokens for Wrapper<WritingMode> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.as_ref().to_tokens(tokens)
+    }
 }
 
-impl Parse for StyleRule {
+impl ToTokens for Wrapper<&WritingMode> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let sulafat_style = crate_name("sulafat-style");
+        tokens.extend(match &self.0 {
+            WritingMode::HorizontalTb => {
+                quote! { ::#sulafat_style::WritingMode::HorizontalTb }
+            }
+            WritingMode::VerticalRl => {
+                quote! { ::#sulafat_style::WritingMode::VerticalRl }
+            }
+            WritingMode::VerticalLr => {
+                quote! { ::#sulafat_style::WritingMode::VerticalLr }
+            }
+            WritingMode::SidewayzRl => {
+                quote! { ::#sulafat_style::WritingMode::SidewayzRl }
+            }
+            WritingMode::SidewayzLr => {
+                quote! { ::#sulafat_style::WritingMode::SidewayzLr }
+            }
+        })
+    }
+}
+
+impl Parse for Wrapper<WritingMode> {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let ident1 = input.parse::<Ident>()?;
+        input.parse::<Token![-]>()?;
+        let ident2 = input.parse::<Ident>()?;
+        let err = || {
+            Err(syn::Error::new(
+                Span::call_site(),
+                &format!("Unexpected value {}-{}", ident1, ident2),
+            ))
+        };
+        Ok(Wrapper(if ident1 == "horizontal" && ident2 == "Tb" {
+            WritingMode::HorizontalTb
+        } else if ident1 == "vertical" {
+            if ident2 == "rl" {
+                WritingMode::VerticalRl
+            } else if ident2 == "lr" {
+                WritingMode::VerticalLr
+            } else {
+                return err();
+            }
+        } else if ident1 == "sideways" {
+            if ident2 == "rl" {
+                WritingMode::SidewayzRl
+            } else if ident2 == "lr" {
+                WritingMode::SidewayzLr
+            } else {
+                return err();
+            }
+        } else {
+            return err();
+        }))
+    }
+}
+
+impl Parse for Wrapper<StyleRule> {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let name = input.parse::<Ident>()?;
-        input.parse::<Token![:]>()?;
         let rule = if name == "left" {
-            StyleRule::Left(input.parse()?)
+            input.parse::<Token![:]>()?;
+            StyleRule::Left(input.parse::<Wrapper<_>>()?.0)
         } else if name == "right" {
-            StyleRule::Right(input.parse()?)
+            input.parse::<Token![:]>()?;
+            StyleRule::Right(input.parse::<Wrapper<_>>()?.0)
+        } else if name == "writing" {
+            input.parse::<Token![-]>()?;
+            let name2 = input.parse::<Ident>()?;
+            if name2 == "mode" {
+                input.parse::<Token![:]>()?;
+                StyleRule::WritingMode(input.parse::<Wrapper<_>>()?.0)
+            } else {
+                return Err(syn::Error::new(
+                    Span::call_site(),
+                    &format!("Unexpected rule name {}-{}", name, name2),
+                ));
+            }
         } else {
             return Err(syn::Error::new(
                 Span::call_site(),
@@ -156,16 +243,32 @@ impl Parse for StyleRule {
             ));
         };
         input.parse::<Token![;]>()?;
-        Ok(rule)
+        Ok(Self(rule))
     }
 }
 
-impl ToTokens for StyleRule {
+impl ToTokens for Wrapper<StyleRule> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.as_ref().to_tokens(tokens)
+    }
+}
+
+impl ToTokens for Wrapper<&StyleRule> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let sulafat_style = crate_name("sulafat-style");
-        tokens.extend(match self {
-            StyleRule::Left(left) => quote! { ::#sulafat_style::StyleRule::Left(#left) },
-            StyleRule::Right(right) => quote! { ::#sulafat_style::StyleRule::Right(#right) },
+        tokens.extend(match &self.0 {
+            StyleRule::Left(left) => {
+                let left = Wrapper(left);
+                quote! { ::#sulafat_style::StyleRule::Left(#left) }
+            }
+            StyleRule::Right(right) => {
+                let right = Wrapper(right);
+                quote! { ::#sulafat_style::StyleRule::Right(#right) }
+            }
+            StyleRule::WritingMode(writing_mode) => {
+                let writing_mode = Wrapper(writing_mode);
+                quote! { ::#sulafat_style::StyleRule::WritingMode(#writing_mode) }
+            }
         })
     }
 }
@@ -201,7 +304,7 @@ impl Parse for StyleRules {
         };
         let mut rules = vec![];
         while !input.is_empty() {
-            rules.push(input.parse()?);
+            rules.push(input.parse::<Wrapper<StyleRule>>()?.0);
         }
         Ok(Self { name, rules })
     }
@@ -210,6 +313,7 @@ impl Parse for StyleRules {
 impl ToTokens for StyleRules {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         for rule in &self.rules {
+            let rule = Wrapper(rule);
             tokens.extend(quote! {
                 #rule,
             })
@@ -259,41 +363,7 @@ fn derive_style_set_impl(items: TokenStream) -> syn::Result<TokenStream> {
             file(&path, |writer| {
                 write!(writer, ".{}{{", name).unwrap();
                 for rule in &rules.rules {
-                    match rule {
-                        StyleRule::Left(LengthOrPercentage::Length(Length::Em(em))) => {
-                            write!(writer, "left:{}em;", em)
-                        }
-                        StyleRule::Left(LengthOrPercentage::Length(Length::Px(px))) => {
-                            write!(writer, "left:{}px;", px)
-                        }
-                        StyleRule::Left(LengthOrPercentage::Length(Length::Vh(vh))) => {
-                            write!(writer, "left:{}vh;", vh)
-                        }
-                        StyleRule::Left(LengthOrPercentage::Length(Length::Vw(vw))) => {
-                            write!(writer, "left:{}vw;", vw)
-                        }
-                        StyleRule::Left(LengthOrPercentage::Parcentage(Parcentage(parcentage))) => {
-                            write!(writer, "left:{}%;", parcentage)
-                        }
-                        StyleRule::Right(LengthOrPercentage::Length(Length::Em(em))) => {
-                            write!(writer, "right:{}em;", em)
-                        }
-                        StyleRule::Right(LengthOrPercentage::Length(Length::Px(px))) => {
-                            write!(writer, "right:{}px;", px)
-                        }
-                        StyleRule::Right(LengthOrPercentage::Length(Length::Vh(vh))) => {
-                            write!(writer, "right:{}vh;", vh)
-                        }
-                        StyleRule::Right(LengthOrPercentage::Length(Length::Vw(vw))) => {
-                            write!(writer, "right:{}vw;", vw)
-                        }
-                        StyleRule::Right(LengthOrPercentage::Parcentage(Parcentage(
-                            parcentage,
-                        ))) => {
-                            write!(writer, "right:{}%;", parcentage)
-                        }
-                    }
-                    .unwrap()
+                    write!(writer, "{}", rule).unwrap();
                 }
                 write!(writer, "}}").unwrap();
             })
