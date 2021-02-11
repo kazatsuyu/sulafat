@@ -14,18 +14,13 @@ pub struct List<Msg> {
 }
 
 impl<Msg> List<Msg> {
-    fn key_map_indexes(&self) -> (HashMap<&String, usize>, Vec<usize>) {
+    fn key_map_indexes(&self) -> (HashMap<&str, usize>, Vec<usize>) {
         let mut map = HashMap::new();
         let mut vec = Vec::with_capacity(self.len());
         let mut i = 0;
         for (index, node) in self.iter().enumerate() {
             if let Some(key) = node.key() {
-                #[cfg(feature = "nightly-features")]
-                map.raw_entry_mut()
-                    .from_key(key)
-                    .or_insert_with(|| (key, index));
-                #[cfg(not(feature = "nightly-features"))]
-                map.entry(key).or_insert(index);
+                map.entry(key.as_str()).or_insert(index);
             }
             vec.push(i);
             i += node.flat_len().unwrap();
@@ -166,7 +161,7 @@ impl FlatDiffContext {
                 this_index += 1;
             }
             let this_index = if let Some(key) = node.key() {
-                if let Some(&this_index) = key_map.get(key) {
+                if let Some(&this_index) = key_map.get(key.as_str()) {
                     this_index
                 } else {
                     this.len()

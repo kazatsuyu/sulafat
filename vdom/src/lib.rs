@@ -1,7 +1,4 @@
-#![cfg_attr(
-    feature = "nightly-features",
-    feature(unsafe_block_in_unsafe_fn, hash_raw_entry)
-)]
+#![cfg_attr(feature = "nightly-features", feature(unsafe_block_in_unsafe_fn))]
 #![cfg_attr(feature = "nightly-features", deny(unsafe_op_in_unsafe_fn))]
 #![cfg_attr(not(feature = "nightly-features"), allow(unused_unsafe))]
 
